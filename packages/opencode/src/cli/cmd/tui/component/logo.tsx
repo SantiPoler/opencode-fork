@@ -2,9 +2,34 @@ import { TextAttributes } from "@opentui/core"
 import { For } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 
-const LOGO_LEFT = [`                   `, `█▀▀█ █▀▀█ █▀▀█ █▀▀▄`, `█░░█ █░░█ █▀▀▀ █░░█`, `▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀`]
+// dipoleSTUDIO logo - "dipole" in primary color, "STUDIO" in secondary
+const LOGO_LEFT = [
+  `     █████  ███                     ████            `,
+  `    ░░███  ░░░                     ░░███           `,
+  `  ███████  ████  ████████   ██████  ░███   ██████ `,
+  ` ███░░███ ░░███ ░░███░░███ ███░░███ ░███  ███░░███`,
+  `░███ ░███  ░███  ░███ ░███░███ ░███ ░███ ░███████ `,
+  `░███ ░███  ░███  ░███ ░███░███ ░███ ░███ ░███░░░  `,
+  `░░████████ █████ ░███████ ░░██████  █████░░██████ `,
+  ` ░░░░░░░░ ░░░░░  ░███░░░   ░░░░░░  ░░░░░  ░░░░░░  `,
+  `                 ░███                              `,
+  `                 █████                             `,
+  `                ░░░░░                              `,
+]
 
-const LOGO_RIGHT = [`             ▄     `, `█▀▀▀ █▀▀█ █▀▀█ █▀▀█`, `█░░░ █░░█ █░░█ █▀▀▀`, `▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀`]
+const LOGO_RIGHT = [
+  `█████████  ███████████ █████  █████ ██████████   █████    ███████   `,
+  `███░░░░░███░█░░░███░░░█░░███  ░░███ ░░███░░░░███ ░░███   ███░░░░░███`,
+  `░███    ░░░ ░   ░███  ░  ░███   ░███  ░███   ░░███ ░███  ███     ░░███`,
+  `░░█████████     ░███     ░███   ░███  ░███    ░███ ░███ ░███      ░███`,
+  ` ░░░░░░░░███    ░███     ░███   ░███  ░███    ░███ ░███ ░███      ░███`,
+  ` ███    ░███    ░███     ░███   ░███  ░███    ███  ░███ ░░███     ███ `,
+  `░░█████████     █████    ░░████████   ██████████   █████ ░░░███████░  `,
+  ` ░░░░░░░░░     ░░░░░      ░░░░░░░░   ░░░░░░░░░░   ░░░░░    ░░░░░░░   `,
+  `                                                                      `,
+  `                                                                      `,
+  `                                                                      `,
+]
 
 export function Logo() {
   const { theme } = useTheme()
@@ -12,11 +37,11 @@ export function Logo() {
     <box>
       <For each={LOGO_LEFT}>
         {(line, index) => (
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.textMuted} selectable={false}>
+          <box flexDirection="row">
+            <text fg={theme.primary} selectable={false}>
               {line}
             </text>
-            <text fg={theme.text} attributes={TextAttributes.BOLD} selectable={false}>
+            <text fg={theme.secondary} attributes={TextAttributes.BOLD} selectable={false}>
               {LOGO_RIGHT[index()]}
             </text>
           </box>

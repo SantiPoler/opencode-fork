@@ -1,7 +1,7 @@
 {
-  "name": "opencode",
-  "displayName": "opencode",
-  "description": "opencode for VS Code",
+  "name": "dipolecode",
+  "displayName": "dipoleCODE",
+  "description": "dipoleCODE - AI Coding Assistant by dipoleSTUDIO",
   "version": "1.1.20",
   "publisher": "sst-dev",
   "repository": {
@@ -20,59 +20,95 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "opencode.openTerminal",
-        "title": "Open opencode",
+        "command": "dipolecode.openTerminal",
+        "title": "Open dipoleCODE",
         "icon": {
           "light": "images/button-dark.svg",
           "dark": "images/button-light.svg"
         }
       },
       {
-        "command": "opencode.openNewTerminal",
-        "title": "Open opencode in new tab",
+        "command": "dipolecode.openNewTerminal",
+        "title": "Open dipoleCODE in new tab",
         "icon": {
           "light": "images/button-dark.svg",
           "dark": "images/button-light.svg"
         }
       },
       {
-        "command": "opencode.addFilepathToTerminal",
+        "command": "dipolecode.addFilepathToTerminal",
         "title": "Add Filepath to Terminal"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dipolecode-activitybar",
+          "title": "dipoleCODE",
+          "icon": "images/activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "dipolecode-activitybar": [
+        {
+          "id": "dipolecode.sidebar",
+          "name": "dipoleCODE",
+          "type": "webview"
+        }
+      ]
+    },
     "menus": {
       "editor/title": [
         {
-          "command": "opencode.openNewTerminal",
+          "command": "dipolecode.openNewTerminal",
           "group": "navigation"
         }
       ]
     },
+"configuration": {
+      "title": "dipoleCODE",
+      "properties": {
+        "dipolecode.afwk.preference": {
+          "type": "string",
+          "enum": ["full", "none", "pending"],
+          "default": "pending",
+          "description": "Preferencia de integración AFWK para este proyecto",
+          "enumDescriptions": [
+            "Integración AFWK completa habilitada",
+            "Usar dipoleCODE sin integración AFWK",
+            "Pendiente de decisión del usuario"
+          ]
+        }
+      }
+    },
     "keybindings": [
       {
-        "command": "opencode.openTerminal",
-        "title": "Run opencode",
+        "command": "dipolecode.openTerminal",
+        "title": "Run dipoleCODE",
         "key": "cmd+escape",
         "mac": "cmd+escape",
         "win": "ctrl+escape",
         "linux": "ctrl+escape"
       },
       {
-        "command": "opencode.openNewTerminal",
-        "title": "Run opencode",
+        "command": "dipolecode.openNewTerminal",
+        "title": "Run dipoleCODE",
         "key": "cmd+shift+escape",
         "mac": "cmd+shift+escape",
         "win": "ctrl+shift+escape",
         "linux": "ctrl+shift+escape"
       },
       {
-        "command": "opencode.addFilepathToTerminal",
-        "title": "opencode: Insert At-Mentioned",
+        "command": "dipolecode.addFilepathToTerminal",
+        "title": "dipoleCODE: Insert At-Mentioned",
         "key": "cmd+alt+k",
         "mac": "cmd+alt+k",
         "win": "ctrl+alt+K",

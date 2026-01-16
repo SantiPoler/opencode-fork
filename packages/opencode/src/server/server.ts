@@ -129,6 +129,10 @@ export namespace Server {
               if (input.startsWith("http://127.0.0.1:")) return input
               if (input === "tauri://localhost" || input === "http://tauri.localhost") return input
 
+              // VSCode webview origins (local and remote)
+              if (input.startsWith("vscode-webview://")) return input
+              if (/^https:\/\/[a-z0-9-]+\.vscode-webview\.net$/.test(input)) return input
+
               // *.opencode.ai (https only, adjust if needed)
               if (/^https:\/\/([a-z0-9-]+\.)*opencode\.ai$/.test(input)) {
                 return input

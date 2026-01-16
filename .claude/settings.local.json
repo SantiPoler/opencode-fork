@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(dir /s /b /a:d C:reposopencode-fork)",
+      "Bash(findstr:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && ls -1 {}')",
+      "Bash(find:*)",
+      "Skill(frontend-design)",
+      "Bash(bun run compile:*)",
+      "Bash(bun run:*)",
+      "Bash(npm run compile:*)"
+    ]
+  }
+}
