@@ -48,17 +48,24 @@ export async function handleStagingReview(
   event: StagingReviewEvent,
   workspaceRoot: string
 ): Promise<void> {
+  console.log('[dipoleCODE] Handling staging review:', event.stagingId);
+  console.log('[dipoleCODE] Staged path:', event.stagedPath);
+  console.log('[dipoleCODE] Workspace root:', workspaceRoot);
+
   try {
     // Build full path to staged file within .afwk/
     const fullStagedPath = path.join(workspaceRoot, '.afwk', event.stagedPath);
+    console.log('[dipoleCODE] Full staged path:', fullStagedPath);
 
     // Open the staged file in editor
     const uri = vscode.Uri.file(fullStagedPath);
+    console.log('[dipoleCODE] Opening URI:', uri.fsPath);
     const doc = await vscode.workspace.openTextDocument(uri);
     const editor = await vscode.window.showTextDocument(doc, {
       preview: false,
       viewColumn: vscode.ViewColumn.One,
     });
+    console.log('[dipoleCODE] Document opened successfully');
 
     // Show the staging confirm/cancel dialog
     const result = await showStagingConfirmDialog(event);
@@ -193,13 +200,13 @@ async function sendStagingCancel(port: number, stagingId: string): Promise<void>
 }
 
 /**
- * EventSource connection state
+ * SSE connection state
  */
-let stagingEventSource: EventSource | null = null;
-let stagingEventSourcePort: number | null = null;
+let sseAbortController: AbortController | null = null;
+let ssePort: number | null = null;
 
 /**
- * Start listening for staging events via SSE
+ * Start listening for staging events via SSE using fetch streaming
  * Should be called after terminal is connected to server
  */
 export function startStagingEventListener(
@@ -208,47 +215,95 @@ export function startStagingEventListener(
   context: vscode.ExtensionContext
 ): void {
   // Avoid duplicate connections
-  if (stagingEventSource && stagingEventSourcePort === port) {
+  if (sseAbortController && ssePort === port) {
     return;
   }
 
   // Close existing connection if port changed
   stopStagingEventListener();
 
+  sseAbortController = new AbortController();
+  ssePort = port;
+
+  // Start SSE connection in background
+  startSSEConnection(port, workspaceRoot, sseAbortController.signal);
+
+  // Add cleanup on extension deactivation
+  context.subscriptions.push({
+    dispose: () => stopStagingEventListener(),
+  });
+
+  console.log('[dipoleCODE] Staging event listener started on port', port);
+}
+
+/**
+ * Start SSE connection using fetch with streaming
+ */
+async function startSSEConnection(
+  port: number,
+  workspaceRoot: string,
+  signal: AbortSignal
+): Promise<void> {
   try {
-    // Use the global event stream to receive staging events
-    const eventSource = new EventSource(`http://localhost:${port}/event`);
-    stagingEventSource = eventSource;
-    stagingEventSourcePort = port;
-
-    eventSource.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        // Check if this is a staging review event
-        if (data.type === 'tui.staging.review') {
-          const stagingEvent = data.properties as StagingReviewEvent;
-          await handleStagingReview(port, stagingEvent, workspaceRoot);
-        }
-      } catch (error) {
-        console.error('[dipoleCODE] Error parsing event:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('[dipoleCODE] SSE connection error:', error);
-      // Don't auto-reconnect on error to avoid spam
-      // The extension will reconnect when a new terminal is opened
-    };
-
-    // Add cleanup on extension deactivation
-    context.subscriptions.push({
-      dispose: () => stopStagingEventListener(),
+    const response = await fetch(`http://localhost:${port}/event`, {
+      headers: {
+        'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
+      signal,
     });
 
-    console.log('[dipoleCODE] Staging event listener started on port', port);
+    if (!response.ok || !response.body) {
+      console.error('[dipoleCODE] SSE connection failed:', response.status);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        console.log('[dipoleCODE] SSE connection closed');
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete SSE messages (separated by double newline)
+      const messages = buffer.split('\n\n');
+      buffer = messages.pop() || ''; // Keep incomplete message in buffer
+
+      for (const message of messages) {
+        if (!message.trim()) continue;
+
+        // Parse SSE format: "data: {...}"
+        const dataMatch = message.match(/^data:\s*(.+)$/m);
+        if (!dataMatch) continue;
+
+        try {
+          const data = JSON.parse(dataMatch[1]);
+          console.log('[dipoleCODE] SSE event received:', data.type);
+
+          // Check if this is a staging review event
+          if (data.type === 'tui.staging.review') {
+            console.log('[dipoleCODE] Staging review event detected!');
+            const stagingEvent = data.properties as StagingReviewEvent;
+            await handleStagingReview(port, stagingEvent, workspaceRoot);
+          }
+        } catch (parseError) {
+          // Ignore parse errors for non-JSON messages (like heartbeats)
+        }
+      }
+    }
   } catch (error) {
-    console.error('[dipoleCODE] Failed to start staging event listener:', error);
+    if (signal.aborted) {
+      console.log('[dipoleCODE] SSE connection aborted');
+    } else {
+      console.error('[dipoleCODE] SSE connection error:', error);
+    }
   }
 }
 
@@ -256,10 +311,10 @@ export function startStagingEventListener(
  * Stop the staging event listener
  */
 export function stopStagingEventListener(): void {
-  if (stagingEventSource) {
-    stagingEventSource.close();
-    stagingEventSource = null;
-    stagingEventSourcePort = null;
+  if (sseAbortController) {
+    sseAbortController.abort();
+    sseAbortController = null;
+    ssePort = null;
     console.log('[dipoleCODE] Staging event listener stopped');
   }
 }

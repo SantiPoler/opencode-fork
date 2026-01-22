@@ -2,6 +2,7 @@
 // Funcion determinista que clasifica el mensaje del usuario
 
 import type { IntentType } from "./contracts"
+import { AfwkLog } from "./logger"
 
 /**
  * Clasifica la intencion del mensaje del usuario.
@@ -14,11 +15,11 @@ export function classifyIntent(userMessage: string): IntentType {
   // Normalizar: trim y manejar undefined/null
   const message = (userMessage ?? "").trim()
 
-  console.error(`[AFWK CLASSIFIER] ========== Intent Classification ==========`)
-  console.error(`[AFWK CLASSIFIER] User Message: "${message.slice(0, 100)}${message.length > 100 ? '...' : ''}"`)
+  AfwkLog.debug("[CLASSIFIER]",` ========== Intent Classification ==========`)
+  AfwkLog.debug("[CLASSIFIER]",` User Message: "${message.slice(0, 100)}${message.length > 100 ? '...' : ''}"`)
 
   if (!message) {
-    console.error(`[AFWK CLASSIFIER] Result: conversation (empty message)`)
+    AfwkLog.debug("[CLASSIFIER]",` Result: conversation (empty message)`)
     return "conversation"
   }
 
@@ -53,21 +54,21 @@ export function classifyIntent(userMessage: string): IntentType {
   // Evaluar patrones en orden: mutation primero (mas especifico)
   for (let i = 0; i < mutationPatterns.length; i++) {
     if (mutationPatterns[i].test(message)) {
-      console.error(`[AFWK CLASSIFIER] Matched mutation pattern #${i + 1}`)
-      console.error(`[AFWK CLASSIFIER] Result: mutation`)
+      AfwkLog.debug("[CLASSIFIER]",` Matched mutation pattern #${i + 1}`)
+      AfwkLog.debug("[CLASSIFIER]",` Result: mutation`)
       return "mutation"
     }
   }
 
   for (let i = 0; i < readPatterns.length; i++) {
     if (readPatterns[i].test(message)) {
-      console.error(`[AFWK CLASSIFIER] Matched read pattern #${i + 1}`)
-      console.error(`[AFWK CLASSIFIER] Result: read`)
+      AfwkLog.debug("[CLASSIFIER]",` Matched read pattern #${i + 1}`)
+      AfwkLog.debug("[CLASSIFIER]",` Result: read`)
       return "read"
     }
   }
 
-  console.error(`[AFWK CLASSIFIER] No patterns matched`)
-  console.error(`[AFWK CLASSIFIER] Result: conversation`)
+  AfwkLog.debug("[CLASSIFIER]",` No patterns matched`)
+  AfwkLog.debug("[CLASSIFIER]",` Result: conversation`)
   return "conversation"
 }

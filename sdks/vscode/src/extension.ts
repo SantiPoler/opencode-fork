@@ -70,7 +70,41 @@ export async function activate(context: vscode.ExtensionContext) {
     getChildren: () => []
   })
 
-  context.subscriptions.push(openTerminalDisposable, openNewTerminalDisposable, addFilepathDisposable, emptyTreeDataProvider)
+  // Listen for any dipoleCODE terminal creation (including from dipoleSTUDIO sidebar)
+  const terminalOpenDisposable = vscode.window.onDidOpenTerminal(async (terminal) => {
+    if (terminal.name !== TERMINAL_NAME) {
+      return
+    }
+
+    console.log("[dipoleCODE] Terminal created, waiting for server...")
+
+    // Get port from terminal environment
+    // @ts-ignore
+    const portStr = terminal.creationOptions?.env?.["_EXTENSION_DIPOLECODE_PORT"]
+    if (!portStr) {
+      console.log("[dipoleCODE] No port found in terminal environment")
+      return
+    }
+
+    const port = parseInt(portStr)
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+
+    if (!workspaceFolder) {
+      console.log("[dipoleCODE] No workspace folder found")
+      return
+    }
+
+    // Wait for server to be ready
+    const connected = await waitForServer(port)
+    if (connected) {
+      console.log("[dipoleCODE] Server connected, starting SSE listener on port", port)
+      startStagingEventListener(port, workspaceFolder, context)
+    } else {
+      console.log("[dipoleCODE] Failed to connect to server on port", port)
+    }
+  })
+
+  context.subscriptions.push(openTerminalDisposable, openNewTerminalDisposable, addFilepathDisposable, emptyTreeDataProvider, terminalOpenDisposable)
 
   console.log("[dipoleCODE] Extension activated successfully")
 

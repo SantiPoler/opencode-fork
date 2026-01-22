@@ -564,24 +564,18 @@ async function findAiTaskPath(
 const CreateDevTaskParams = z.object({
   title: z.string().min(3).describe("Title for the devTASK (e.g., 'Login Implementation')"),
   description: z.string().min(10).describe("Description of what this task accomplishes"),
-  userConfirmed: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Set to true only after user explicitly confirms they want to create this devTASK"),
 })
 
 interface CreateDevTaskMetadata {
   afwk: AfwkToolOutput | StagingToolOutput
   taskId?: string
-  proposed?: boolean
 }
 
 export const AfwkCreateDevTaskTool = Tool.define<typeof CreateDevTaskParams, CreateDevTaskMetadata>(
   AFWK_TOOL_IDS.createDevTask,
   {
     description:
-      "Create a new devTASK in the backlog. IMPORTANT: First call with userConfirmed=false to propose the task, then call again with userConfirmed=true only after user explicitly approves.",
+      "Create a new devTASK in the backlog. The overview document will be staged for user review before being saved.",
     parameters: CreateDevTaskParams,
     async execute(params, _ctx) {
       const runId = generateToolRunId()
@@ -614,29 +608,6 @@ export const AfwkCreateDevTaskTool = Tool.define<typeof CreateDevTaskParams, Cre
           title: "Create DevTask",
           output: JSON.stringify({ error: "Not initialized" }),
           metadata: { afwk: output },
-        }
-      }
-
-      // Si no está confirmado por el usuario, retornar propuesta
-      if (!params.userConfirmed) {
-        const output: AfwkToolOutput = {
-          ok: true,
-          tool_run_id: runId,
-          changes: [],
-          warnings: ["Awaiting user confirmation"],
-          errors: [],
-        }
-
-        return {
-          title: "Proposed DevTask",
-          output: `📋 **Proposed devTASK:**
-
-**Title:** ${params.title}
-**Description:** ${params.description}
-
-⚠️ This is a proposal. Ask the user if they want to create this devTASK.
-If the user confirms, call this tool again with \`userConfirmed: true\`.`,
-          metadata: { afwk: output, proposed: true },
         }
       }
 

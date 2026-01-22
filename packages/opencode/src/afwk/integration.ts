@@ -7,6 +7,7 @@ import { classifyIntent } from "./classifier"
 import { policyGate } from "./policy-gate"
 import { isInitialized } from "./state"
 import type { IntentType, LLMResponse, GateResult } from "./contracts"
+import { AfwkLog } from "./logger"
 
 /**
  * Resultado de la validación de una respuesta del LLM.
@@ -40,16 +41,16 @@ export async function validateResponse(
   userMessage: string,
   assistantParts: MessageV2.Part[],
 ): Promise<ValidationResult> {
-  console.error(`[AFWK INTEGRATION] ========== Validate Response ==========`)
-  console.error(`[AFWK INTEGRATION] User Message: "${userMessage.slice(0, 80)}..."`)
-  console.error(`[AFWK INTEGRATION] Assistant Parts Count: ${assistantParts.length}`)
+  AfwkLog.debug("[INTEGRATION]",` ========== Validate Response ==========`)
+  AfwkLog.debug("[INTEGRATION]",` User Message: "${userMessage.slice(0, 80)}..."`)
+  AfwkLog.debug("[INTEGRATION]",` Assistant Parts Count: ${assistantParts.length}`)
 
   // Verificar si afwk está inicializado
   const enabled = await isInitialized()
-  console.error(`[AFWK INTEGRATION] AFWK Enabled: ${enabled}`)
+  AfwkLog.debug("[INTEGRATION]",` AFWK Enabled: ${enabled}`)
 
   if (!enabled) {
-    console.error(`[AFWK INTEGRATION] Result: SKIP (afwk not initialized)`)
+    AfwkLog.debug("[INTEGRATION]",` Result: SKIP (afwk not initialized)`)
     return {
       enabled: false,
       intent: "conversation",
@@ -67,10 +68,10 @@ export async function validateResponse(
   // Validar con policy gate
   const decision = policyGate(intent, llmResponse)
 
-  console.error(`[AFWK INTEGRATION] Final Decision: ${decision}`)
+  AfwkLog.debug("[INTEGRATION]",` Final Decision: ${decision}`)
 
   if (decision === "accept") {
-    console.error(`[AFWK INTEGRATION] Result: VALID`)
+    AfwkLog.debug("[INTEGRATION]",` Result: VALID`)
     return {
       enabled: true,
       intent,
@@ -89,7 +90,7 @@ export async function validateResponse(
     reason = "Unknown validation failure"
   }
 
-  console.error(`[AFWK INTEGRATION] Result: INVALID - ${reason}`)
+  AfwkLog.debug("[INTEGRATION]",` Result: INVALID - ${reason}`)
 
   return {
     enabled: true,
@@ -152,7 +153,7 @@ export function emitEnforcementEvent(event: EnforcementEvent): void {
     try {
       listener(event)
     } catch (err) {
-      console.error("[afwk] Error in enforcement listener:", err)
+      AfwkLog.error("[INTEGRATION]", "Error in enforcement listener:", err)
     }
   }
 }

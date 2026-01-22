@@ -4,6 +4,7 @@
 
 import * as fs from "fs/promises"
 import * as path from "path"
+import { getStateDir } from "./state"
 
 // Template types supported by the framework
 export type TemplateType = "overview" | "aitask-blueprint" | "completion-notes"
@@ -106,9 +107,7 @@ export function getTemplatesDir(basePath?: string): string | null {
   if (basePath) {
     return path.join(basePath, "templates")
   }
-  // Lazy import to avoid circular dependency and allow testing without Instance
   try {
-    const { getStateDir } = require("./state")
     return path.join(getStateDir(), "templates")
   } catch {
     return null

@@ -5,6 +5,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import { Instance } from "../project/instance"
 import type { StateJson, AuditLogEntry, PendingAction } from "./contracts"
+import { AfwkLog } from "./logger"
 
 const STATE_DIR = ".afwk"
 const STATE_FILE = "state.json"
@@ -38,7 +39,7 @@ export async function readState(): Promise<StateJson> {
 
     // Validar schema_version
     if (parsed.schema_version !== 1) {
-      console.warn(`[afwk] Unknown state schema version: ${parsed.schema_version}, using defaults`)
+      AfwkLog.warn("[STATE]", `Unknown state schema version: ${parsed.schema_version}, using defaults`)
       return createDefaultState()
     }
 
@@ -48,7 +49,7 @@ export async function readState(): Promise<StateJson> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return createDefaultState()
     }
-    console.warn(`[afwk] Error reading state.json:`, error)
+    AfwkLog.warn("[STATE]", "Error reading state.json:", error)
     return createDefaultState()
   }
 }
@@ -149,15 +150,15 @@ export async function getRecentAuditEntries(count: number = 10): Promise<AuditLo
 export async function isInitialized(): Promise<boolean> {
   const directory = Instance.directory
   const stateDir = getStateDir()
-  console.error(`[AFWK DEBUG] Instance.directory: ${directory}`)
-  console.error(`[AFWK DEBUG] Checking isInitialized at: ${stateDir}`)
+  AfwkLog.debug("[STATE]", `Instance.directory: ${directory}`)
+  AfwkLog.debug("[STATE]", `Checking isInitialized at: ${stateDir}`)
   try {
     const stats = await fs.stat(stateDir)
     const result = stats.isDirectory()
-    console.error(`[AFWK DEBUG] isInitialized result: ${result}`)
+    AfwkLog.debug("[STATE]", `isInitialized result: ${result}`)
     return result
   } catch (err) {
-    console.error(`[AFWK DEBUG] isInitialized error:`, err)
+    AfwkLog.debug("[STATE]", "isInitialized error:", err)
     return false
   }
 }

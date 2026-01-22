@@ -16,6 +16,9 @@ export * from "./state"
 // Staging system for document review
 export * from "./staging"
 
+// Logger for file-based debugging
+export { AfwkLog } from "./logger"
+
 // System prompt generation
 export * from "./system-prompt"
 

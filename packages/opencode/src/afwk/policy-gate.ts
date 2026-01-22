@@ -3,6 +3,7 @@
 
 import type { IntentType, LLMResponse } from "./contracts"
 import { isGetter, isMutator } from "./contracts"
+import { AfwkLog } from "./logger"
 
 /**
  * Detecta si el texto del LLM es una respuesta de clarificacion.
@@ -60,15 +61,15 @@ export function isClarificationResponse(text: string): boolean {
  * @returns "accept" si la respuesta cumple, "retry" si no cumple
  */
 export function policyGate(userIntent: IntentType, llmResponse: LLMResponse): "accept" | "retry" {
-  console.error(`[AFWK POLICY] ========== Policy Gate Evaluation ==========`)
-  console.error(`[AFWK POLICY] User Intent: ${userIntent}`)
-  console.error(`[AFWK POLICY] LLM Text (first 100 chars): ${(llmResponse.text ?? "").slice(0, 100)}...`)
-  console.error(`[AFWK POLICY] Tool Calls Count: ${llmResponse.toolCalls?.length ?? 0}`)
+  AfwkLog.debug("[POLICY]",` ========== Policy Gate Evaluation ==========`)
+  AfwkLog.debug("[POLICY]",` User Intent: ${userIntent}`)
+  AfwkLog.debug("[POLICY]",` LLM Text (first 100 chars): ${(llmResponse.text ?? "").slice(0, 100)}...`)
+  AfwkLog.debug("[POLICY]",` Tool Calls Count: ${llmResponse.toolCalls?.length ?? 0}`)
 
   // Log each tool call
   if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
     for (const tc of llmResponse.toolCalls) {
-      console.error(`[AFWK POLICY]   - Tool: ${tc.name}, Executed: ${tc.executed}`)
+      AfwkLog.debug("[POLICY]",`   - Tool: ${tc.name}, Executed: ${tc.executed}`)
     }
   }
 
@@ -76,36 +77,36 @@ export function policyGate(userIntent: IntentType, llmResponse: LLMResponse): "a
   const executedGetter = llmResponse.toolCalls?.find((tc) => tc.executed && isGetter(tc.name))
   const executedMutator = llmResponse.toolCalls?.find((tc) => tc.executed && isMutator(tc.name))
 
-  console.error(`[AFWK POLICY] Executed Getter: ${executedGetter?.name ?? "none"}`)
-  console.error(`[AFWK POLICY] Executed Mutator: ${executedMutator?.name ?? "none"}`)
+  AfwkLog.debug("[POLICY]",` Executed Getter: ${executedGetter?.name ?? "none"}`)
+  AfwkLog.debug("[POLICY]",` Executed Mutator: ${executedMutator?.name ?? "none"}`)
 
   // READ: requiere getter ejecutado
   if (userIntent === "read") {
     if (executedGetter) {
-      console.error(`[AFWK POLICY] Decision: ACCEPT (read intent + getter executed)`)
+      AfwkLog.debug("[POLICY]",` Decision: ACCEPT (read intent + getter executed)`)
       return "accept"
     }
-    console.error(`[AFWK POLICY] Decision: RETRY (read intent but no getter executed)`)
+    AfwkLog.debug("[POLICY]",` Decision: RETRY (read intent but no getter executed)`)
     return "retry"
   }
 
   // MUTATION: requiere mutator ejecutado O clarificacion valida
   if (userIntent === "mutation") {
     if (executedMutator) {
-      console.error(`[AFWK POLICY] Decision: ACCEPT (mutation intent + mutator executed)`)
+      AfwkLog.debug("[POLICY]",` Decision: ACCEPT (mutation intent + mutator executed)`)
       return "accept"
     }
     const isClarification = isClarificationResponse(llmResponse.text)
-    console.error(`[AFWK POLICY] Is Clarification: ${isClarification}`)
+    AfwkLog.debug("[POLICY]",` Is Clarification: ${isClarification}`)
     if (isClarification) {
-      console.error(`[AFWK POLICY] Decision: ACCEPT (mutation intent + valid clarification)`)
+      AfwkLog.debug("[POLICY]",` Decision: ACCEPT (mutation intent + valid clarification)`)
       return "accept"
     }
-    console.error(`[AFWK POLICY] Decision: RETRY (mutation intent but no mutator and no clarification)`)
+    AfwkLog.debug("[POLICY]",` Decision: RETRY (mutation intent but no mutator and no clarification)`)
     return "retry"
   }
 
   // CONVERSATION: siempre acepta
-  console.error(`[AFWK POLICY] Decision: ACCEPT (conversation intent - always accept)`)
+  AfwkLog.debug("[POLICY]",` Decision: ACCEPT (conversation intent - always accept)`)
   return "accept"
 }
