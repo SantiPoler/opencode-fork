@@ -26,6 +26,8 @@ import { Log } from "@/util/log"
 import { LspTool } from "./lsp"
 import { Truncate } from "./truncation"
 import { PlanExitTool, PlanEnterTool } from "./plan"
+import { AfwkTools } from "../afwk/tools"
+import { isInitialized as isAfwkInitialized } from "../afwk/state"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -91,6 +93,10 @@ export namespace ToolRegistry {
   async function all(): Promise<Tool.Info[]> {
     const custom = await state().then((x) => x.custom)
     const config = await Config.get()
+    const afwkEnabled = await isAfwkInitialized()
+
+    // Debug log for afwk initialization
+    log.info("afwk_status", { enabled: afwkEnabled, worktree: Instance.worktree })
 
     return [
       InvalidTool,
@@ -111,6 +117,7 @@ export namespace ToolRegistry {
       ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
       ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
       ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [PlanExitTool, PlanEnterTool] : []),
+      ...(afwkEnabled ? AfwkTools : []),
       ...custom,
     ]
   }

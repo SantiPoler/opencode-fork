@@ -8,6 +8,7 @@ import { BunProc } from "../bun"
 import { Instance } from "../project/instance"
 import { Flag } from "../flag/flag"
 import { CodexAuthPlugin } from "./codex"
+import { AfwkSecurityPlugin } from "../afwk/security-hooks"
 import { Session } from "../session"
 import { NamedError } from "@opencode-ai/util/error"
 
@@ -21,7 +22,7 @@ export namespace Plugin {
   ]
 
   // Built-in plugins that are directly imported (not installed from npm)
-  const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin]
+  const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, AfwkSecurityPlugin]
 
   const state = Instance.state(async () => {
     const client = createOpencodeClient({

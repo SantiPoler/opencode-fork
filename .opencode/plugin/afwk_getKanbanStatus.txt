@@ -1,0 +1,15 @@
+Get the status of the AFWK (AI Framework) Kanban board.
+
+This tool reads the folder structure at .afwk/kanban/ and returns a structured summary of all devTASKs organized by their state (backlog, todo, in_progress, completed).
+
+Use this tool to:
+- Get an overview of all development tasks and their current status
+- Track progress across the Kanban workflow
+- Identify tasks in each stage of development
+
+The tool expects devTASK folders to follow the naming convention: devTASK-NN_descriptive-name (e.g., devTASK-01_login-implementation)
+
+Output formats:
+- detailed: Full listing with task details per state
+- summary: Just the counts per state
+- json: Raw JSON output for programmatic processing

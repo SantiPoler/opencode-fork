@@ -1,0 +1,383 @@
+$ bun run --conditions=browser ./src/index.ts "C:\\repos\\test-project"
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 4
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Final step - validating with aggregated evidence
+[AFWK PROCESSOR] Aggregated parts count: 7
+[AFWK INTEGRATION] ========== Validate Response ==========
+[AFWK INTEGRATION] User Message: "Cual es el estado del proyecto?..."
+[AFWK INTEGRATION] Assistant Parts Count: 7
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK INTEGRATION] AFWK Enabled: true
+[AFWK CLASSIFIER] ========== Intent Classification ==========
+[AFWK CLASSIFIER] User Message: "Cual es el estado del proyecto?"
+[AFWK CLASSIFIER] Matched read pattern #1
+[AFWK CLASSIFIER] Result: read
+[AFWK POLICY] ========== Policy Gate Evaluation ==========
+[AFWK POLICY] User Intent: read
+[AFWK POLICY] LLM Text (first 100 chars): Hay 1 tarea en progreso (`devTASK-01_scaffolding-inicial`) y no hay tareas en backlog, todo ni compl...
+[AFWK POLICY] Tool Calls Count: 1
+[AFWK POLICY]   - Tool: afwk_get_kanban_status, Executed: true
+[AFWK POLICY] Executed Getter: afwk_get_kanban_status
+[AFWK POLICY] Executed Mutator: none
+[AFWK POLICY] Decision: ACCEPT (read intent + getter executed)
+[AFWK INTEGRATION] Final Decision: accept
+[AFWK INTEGRATION] Result: VALID
+[AFWK PROCESSOR] Validation PASSED
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 6
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 10
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 18
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Final step - validating with aggregated evidence
+[AFWK PROCESSOR] Aggregated parts count: 22
+[AFWK INTEGRATION] ========== Validate Response ==========
+[AFWK INTEGRATION] User Message: "Que sigue de implementar en la tarea?..."
+[AFWK INTEGRATION] Assistant Parts Count: 22
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK INTEGRATION] AFWK Enabled: true
+[AFWK CLASSIFIER] ========== Intent Classification ==========
+[AFWK CLASSIFIER] User Message: "Que sigue de implementar en la tarea?"
+[AFWK CLASSIFIER] No patterns matched
+[AFWK CLASSIFIER] Result: conversation
+[AFWK POLICY] ========== Policy Gate Evaluation ==========
+[AFWK POLICY] User Intent: conversation
+[AFWK POLICY] LLM Text (first 100 chars): Lo siguiente en la tarea es **aiTASK-04: Inicializar Git y README**. Incluye:
+- Inicializar el repo ...
+[AFWK POLICY] Tool Calls Count: 9
+[AFWK POLICY]   - Tool: afwk_get_kanban_status, Executed: true
+[AFWK POLICY]   - Tool: afwk_get_steering_context, Executed: true
+[AFWK POLICY]   - Tool: glob, Executed: true
+[AFWK POLICY]   - Tool: glob, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY] Executed Getter: afwk_get_kanban_status
+[AFWK POLICY] Executed Mutator: none
+[AFWK POLICY] Decision: ACCEPT (conversation intent - always accept)
+[AFWK INTEGRATION] Final Decision: accept
+[AFWK INTEGRATION] Result: VALID
+[AFWK PROCESSOR] Validation PASSED
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 4
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 8
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 12
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 17
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 21
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 25
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 29
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 33
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 38
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Final step - validating with aggregated evidence
+[AFWK PROCESSOR] Aggregated parts count: 42
+[AFWK INTEGRATION] ========== Validate Response ==========
+[AFWK INTEGRATION] User Message: "Si por favor..."
+[AFWK INTEGRATION] Assistant Parts Count: 42
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK INTEGRATION] AFWK Enabled: true
+[AFWK CLASSIFIER] ========== Intent Classification ==========
+[AFWK CLASSIFIER] User Message: "Si por favor"
+[AFWK CLASSIFIER] No patterns matched
+[AFWK CLASSIFIER] Result: conversation
+[AFWK POLICY] ========== Policy Gate Evaluation ==========
+[AFWK POLICY] User Intent: conversation
+[AFWK POLICY] LLM Text (first 100 chars): Listo: inicialic├⌐ Git y agregu├⌐ `.gitignore` + `README.md`.
+
+**Cambios**
+- `.gitignore` con exclusio...
+[AFWK POLICY] Tool Calls Count: 11
+[AFWK POLICY]   - Tool: glob, Executed: true
+[AFWK POLICY]   - Tool: glob, Executed: true
+[AFWK POLICY]   - Tool: bash, Executed: true
+[AFWK POLICY]   - Tool: write, Executed: true
+[AFWK POLICY]   - Tool: write, Executed: true
+[AFWK POLICY]   - Tool: afwk_complete_aitask, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: afwk_update_document, Executed: true
+[AFWK POLICY]   - Tool: afwk_update_latest_implementation, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY] Executed Getter: none
+[AFWK POLICY] Executed Mutator: afwk_complete_aitask
+[AFWK POLICY] Decision: ACCEPT (conversation intent - always accept)
+[AFWK INTEGRATION] Final Decision: accept
+[AFWK INTEGRATION] Result: VALID
+[AFWK PROCESSOR] Validation PASSED
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 4
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Final step - validating with aggregated evidence
+[AFWK PROCESSOR] Aggregated parts count: 7
+[AFWK INTEGRATION] ========== Validate Response ==========
+[AFWK INTEGRATION] User Message: "Si, valida el devTASK..."
+[AFWK INTEGRATION] Assistant Parts Count: 7
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK INTEGRATION] AFWK Enabled: true
+[AFWK CLASSIFIER] ========== Intent Classification ==========
+[AFWK CLASSIFIER] User Message: "Si, valida el devTASK"
+[AFWK CLASSIFIER] No patterns matched
+[AFWK CLASSIFIER] Result: conversation
+[AFWK POLICY] ========== Policy Gate Evaluation ==========
+[AFWK POLICY] User Intent: conversation
+[AFWK POLICY] LLM Text (first 100 chars): Validaci├│n OK: `devTASK-01_scaffolding-inicial` est├í en estado v├ílido. ┬┐Quieres que lo movamos a `co...
+[AFWK POLICY] Tool Calls Count: 1
+[AFWK POLICY]   - Tool: afwk_validate_devtask, Executed: true
+[AFWK POLICY] Executed Getter: afwk_validate_devtask
+[AFWK POLICY] Executed Mutator: none
+[AFWK POLICY] Decision: ACCEPT (conversation intent - always accept)
+[AFWK INTEGRATION] Final Decision: accept
+[AFWK INTEGRATION] Result: VALID
+[AFWK PROCESSOR] Validation PASSED
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 3
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Final step - validating with aggregated evidence
+[AFWK PROCESSOR] Aggregated parts count: 6
+[AFWK INTEGRATION] ========== Validate Response ==========
+[AFWK INTEGRATION] User Message: "Muevelo a completed..."
+[AFWK INTEGRATION] Assistant Parts Count: 6
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK INTEGRATION] AFWK Enabled: true
+[AFWK CLASSIFIER] ========== Intent Classification ==========
+[AFWK CLASSIFIER] User Message: "Muevelo a completed"
+[AFWK CLASSIFIER] No patterns matched
+[AFWK CLASSIFIER] Result: conversation
+[AFWK POLICY] ========== Policy Gate Evaluation ==========
+[AFWK POLICY] User Intent: conversation
+[AFWK POLICY] LLM Text (first 100 chars): Hecho. `devTASK-01_scaffolding-inicial` est├í en `completed`. ┬┐Creamos el siguiente devTASK?...
+[AFWK POLICY] Tool Calls Count: 1
+[AFWK POLICY]   - Tool: afwk_move_kanban_task, Executed: true
+[AFWK POLICY] Executed Getter: none
+[AFWK POLICY] Executed Mutator: afwk_move_kanban_task
+[AFWK POLICY] Decision: ACCEPT (conversation intent - always accept)
+[AFWK INTEGRATION] Final Decision: accept
+[AFWK INTEGRATION] Result: VALID
+[AFWK PROCESSOR] Validation PASSED
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 4
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 11
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: tool-calls)
+[AFWK PROCESSOR] Turn parts count: 15
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK PROCESSOR] Final step - validating with aggregated evidence
+[AFWK PROCESSOR] Aggregated parts count: 18
+[AFWK INTEGRATION] ========== Validate Response ==========
+[AFWK INTEGRATION] User Message: "Te falto llenar las cosas del overview del registro de complecion..."
+[AFWK INTEGRATION] Assistant Parts Count: 18
+[AFWK DEBUG] Instance.directory: C:\repos\test-project
+[AFWK DEBUG] Checking isInitialized at: C:\repos\test-project\.afwk
+[AFWK DEBUG] isInitialized result: true
+[AFWK INTEGRATION] AFWK Enabled: true
+[AFWK CLASSIFIER] ========== Intent Classification ==========
+[AFWK CLASSIFIER] User Message: "Te falto llenar las cosas del overview del registro de complecion"
+[AFWK CLASSIFIER] No patterns matched
+[AFWK CLASSIFIER] Result: conversation
+[AFWK POLICY] ========== Policy Gate Evaluation ==========
+[AFWK POLICY] User Intent: conversation
+[AFWK POLICY] LLM Text (first 100 chars): Listo, complet├⌐ el registro de compleci├│n en `overview.md`.
+
+**Actualizado**
+- Resumen, blueprints c...
+[AFWK POLICY] Tool Calls Count: 6
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: read, Executed: true
+[AFWK POLICY]   - Tool: afwk_update_document, Executed: true
+[AFWK POLICY] Executed Getter: none
+[AFWK POLICY] Executed Mutator: afwk_update_document
+[AFWK POLICY] Decision: ACCEPT (conversation intent - always accept)
+[AFWK INTEGRATION] Final Decision: accept
+[AFWK INTEGRATION] Result: VALID
+[AFWK PROCESSOR] Validation PASSED

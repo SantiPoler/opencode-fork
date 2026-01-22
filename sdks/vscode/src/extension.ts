@@ -4,6 +4,7 @@ export function deactivate() {}
 import * as vscode from "vscode"
 import { initializeAFWK } from "./afwk"
 import { initializeModalProvider } from "./ui/modal"
+import { startStagingEventListener } from "./afwk/staging"
 
 const TERMINAL_NAME = "dipoleCODE"
 
@@ -44,29 +45,34 @@ export async function activate(context: vscode.ExtensionContext) {
 
     if (terminal.name === TERMINAL_NAME) {
       // @ts-ignore
-      const port = terminal.creationOptions.env?.["_EXTENSION_DIPOLECODE_PORT"]
-      port ? await appendPrompt(parseInt(port), fileRef) : terminal.sendText(fileRef, false)
+      const portStr = terminal.creationOptions.env?.["_EXTENSION_DIPOLECODE_PORT"]
+      if (portStr) {
+        const port = parseInt(portStr)
+        await appendPrompt(port, fileRef)
+
+        // Ensure staging listener is running
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+        if (workspaceFolder) {
+          startStagingEventListener(port, workspaceFolder, context)
+        }
+      } else {
+        terminal.sendText(fileRef, false)
+      }
       terminal.show()
     }
   })
 
-  const sidebarProvider = vscode.window.registerWebviewViewProvider("dipolecode.sidebar", {
-    resolveWebviewView: async (view) => {
-      view.webview.options = { enableScripts: true }
-      view.webview.html = getSidebarHtml()
-
-      const openIfVisible = () => {
-        if (view.visible) {
-          void openTerminalAsEditorTab()
-        }
-      }
-
-      openIfVisible()
-      view.onDidChangeVisibility(openIfVisible)
-    },
+  // Register an empty tree data provider for the sidebar view
+  // The actual click is intercepted by dipoleSTUDIO's paneCompositeBar.ts
+  // to directly open the terminal instead of showing a panel
+  const emptyTreeDataProvider = vscode.window.registerTreeDataProvider("dipolecode.sidebar", {
+    getTreeItem: () => { throw new Error("Not implemented") },
+    getChildren: () => []
   })
 
-  context.subscriptions.push(openTerminalDisposable, openNewTerminalDisposable, addFilepathDisposable, sidebarProvider)
+  context.subscriptions.push(openTerminalDisposable, openNewTerminalDisposable, addFilepathDisposable, emptyTreeDataProvider)
+
+  console.log("[dipoleCODE] Extension activated successfully")
 
   async function openTerminal() {
     // Create a new terminal in split screen
@@ -82,22 +88,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const connected = await waitForServer(port)
 
-    // If connected, append the prompt to the terminal
+    // If connected, append the prompt to the terminal and start staging listener
     if (connected) {
       await appendPrompt(port, `In ${fileRef}`)
       terminal.show()
+
+      // Start listening for staging events
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+      if (workspaceFolder) {
+        startStagingEventListener(port, workspaceFolder, context)
+      }
     }
-  }
-
-  async function openTerminalAsEditorTab() {
-    // Create or focus terminal as a full editor tab (not split)
-    const { terminal, port } = ensureTerminal({
-      show: true,
-      location: vscode.TerminalLocation.Editor,
-    })
-
-    await waitForServer(port)
-    terminal.show()
   }
 
   async function openPanel() {
@@ -247,31 +248,6 @@ export async function activate(context: vscode.ExtensionContext) {
   </head>
   <body>
     <iframe src="${appUrl}" title="dipoleCODE"></iframe>
-  </body>
-</html>`
-  }
-
-  function getSidebarHtml() {
-    return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>
-      body {
-        font-family: var(--vscode-font-family);
-        color: var(--vscode-foreground);
-        padding: 12px;
-      }
-      .hint {
-        opacity: 0.8;
-        font-size: 12px;
-        line-height: 1.4;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="hint">dipoleCODE se abre como terminal en una pestaña completa.</div>
   </body>
 </html>`
   }

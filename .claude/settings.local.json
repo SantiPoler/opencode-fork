@@ -9,7 +9,11 @@
       "Skill(frontend-design)",
       "Bash(bun run compile:*)",
       "Bash(bun run:*)",
-      "Bash(npm run compile:*)"
+      "Bash(npm run compile:*)",
+      "Bash(Get-ChildItem -Path $env:USERPROFILE -Filter \"*opencode*\" -Recurse -ErrorAction SilentlyContinue -Depth 3)",
+      "Bash(Select-Object -First 20 FullName)",
+      "Bash(dir:*)",
+      "Bash(bun test:*)"
     ]
   }
 }

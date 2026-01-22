@@ -43,4 +43,26 @@ export const TuiEvent = {
       sessionID: z.string().regex(/^ses/).describe("Session ID to navigate to"),
     }),
   ),
+  // AFWK Staging Events
+  StagingReview: BusEvent.define(
+    "tui.staging.review",
+    z.object({
+      stagingId: z.string().describe("Unique staging ID"),
+      stagedPath: z.string().describe("Relative path to staged file within .afwk/"),
+      finalPath: z.string().describe("Final destination path within .afwk/"),
+      documentType: z
+        .enum(["devtask-overview", "aitask-blueprint", "completion-notes", "document-update"])
+        .describe("Type of document being staged"),
+      expiresAt: z.string().describe("ISO timestamp when staging expires"),
+    }),
+  ),
+  StagingResult: BusEvent.define(
+    "tui.staging.result",
+    z.object({
+      stagingId: z.string().describe("Unique staging ID"),
+      result: z.enum(["confirmed", "cancelled", "expired"]).describe("Result of staging operation"),
+      finalPath: z.string().optional().describe("Final path if confirmed"),
+      error: z.string().optional().describe("Error message if operation failed"),
+    }),
+  ),
 }

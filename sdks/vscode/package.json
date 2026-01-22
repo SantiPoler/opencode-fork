@@ -45,6 +45,14 @@
       {
         "command": "dipolecode.addFilepathToTerminal",
         "title": "Add Filepath to Terminal"
+      },
+      {
+        "command": "dipolecode.checkAFWK",
+        "title": "dipoleCODE: Configurar AFWK"
+      },
+      {
+        "command": "dipolecode.createAFWK",
+        "title": "dipoleCODE: Crear estructura AFWK"
       }
     ],
     "viewsContainers": {
@@ -61,7 +69,7 @@
         {
           "id": "dipolecode.sidebar",
           "name": "dipoleCODE",
-          "type": "webview"
+          "visibility": "hidden"
         }
       ]
     },

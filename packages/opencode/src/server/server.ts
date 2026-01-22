@@ -21,6 +21,7 @@ import { LSP } from "../lsp"
 import { Format } from "../format"
 import { MessageV2 } from "../session/message-v2"
 import { TuiRoute } from "./tui"
+import { StagingRoute } from "./staging"
 import { Instance } from "../project/instance"
 import { Project } from "../project/project"
 import { Vcs } from "../project/vcs"
@@ -2748,6 +2749,7 @@ export namespace Server {
           },
         )
         .route("/tui/control", TuiRoute)
+        .route("/tui/staging", StagingRoute)
         .put(
           "/auth/:providerID",
           describeRoute({

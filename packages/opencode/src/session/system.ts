@@ -17,6 +17,9 @@ import PROMPT_CODEX from "./prompt/codex.txt"
 import PROMPT_CODEX_INSTRUCTIONS from "./prompt/codex_header.txt"
 import type { Provider } from "@/provider/provider"
 import { Flag } from "@/flag/flag"
+import { isInitialized as isAfwkInitialized, getStateDir } from "../afwk/state"
+import { generateSystemPrompt } from "../afwk/system-prompt"
+import * as fs from "fs/promises"
 
 export namespace SystemPrompt {
   export function header(providerID: string) {
@@ -134,5 +137,58 @@ export namespace SystemPrompt {
         .then((x) => (x ? "Instructions from: " + url + "\n" + x : "")),
     )
     return Promise.all([...foundFiles, ...foundUrls]).then((result) => result.filter(Boolean))
+  }
+
+  /**
+   * Genera el system prompt de aiFRAMEWORK si está inicializado.
+   * Incluye contexto del kanban y reglas de enforcement.
+   */
+  export async function afwk(): Promise<string[]> {
+    const initialized = await isAfwkInitialized()
+    if (!initialized) {
+      return []
+    }
+
+    try {
+      // Obtener conteos del kanban
+      const kanbanDir = path.join(getStateDir(), "kanban")
+      const columns = ["backlog", "todo", "in_progress", "completed"] as const
+
+      const counts: Record<string, number> = {
+        backlog: 0,
+        todo: 0,
+        in_progress: 0,
+        completed: 0,
+      }
+
+      for (const column of columns) {
+        const columnDir = path.join(kanbanDir, column)
+        try {
+          const entries = await fs.readdir(columnDir, { withFileTypes: true })
+          counts[column] = entries.filter(
+            (e) => e.isDirectory() && e.name.match(/^(devTASK|aiTASK)-\d{2}/i),
+          ).length
+        } catch {
+          // Directorio no existe, mantener 0
+        }
+      }
+
+      const projectName = path.basename(Instance.directory)
+
+      const prompt = generateSystemPrompt({
+        projectName,
+        kanbanCounts: counts as {
+          backlog: number
+          todo: number
+          in_progress: number
+          completed: number
+        },
+      })
+
+      return [prompt]
+    } catch (error) {
+      console.warn("[afwk] Error generating system prompt:", error)
+      return []
+    }
   }
 }

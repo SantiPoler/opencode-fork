@@ -15,10 +15,16 @@ import { Config } from "@/config/config"
 import { SessionCompaction } from "./compaction"
 import { PermissionNext } from "@/permission/next"
 import { Question } from "@/question"
+import { validateResponse, generateRetrySystemSuffix, extractUserText } from "@/afwk/integration"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
+  const AFWK_MAX_RETRIES = 2
   const log = Log.create({ service: "session.processor" })
+
+  // Track accumulated parts per user message for aggregated validation across steps
+  // Key: userMessageID, Value: array of parts from all assistant messages in this turn
+  const afwkTurnParts = new Map<string, MessageV2.Part[]>()
 
   export type Info = Awaited<ReturnType<typeof create>>
   export type Result = Awaited<ReturnType<Info["process"]>>
@@ -34,6 +40,7 @@ export namespace SessionProcessor {
     let blocked = false
     let attempt = 0
     let needsCompaction = false
+    let afwkRetryCount = 0
 
     const result = {
       get message() {
@@ -397,6 +404,73 @@ export namespace SessionProcessor {
           if (needsCompaction) return "compact"
           if (blocked) return "stop"
           if (input.assistantMessage.error) return "stop"
+
+          // AFWK Policy Gate Validation
+          // Accumulate parts from all steps, validate on final step (finish != "tool-calls")
+          const finishReason = input.assistantMessage.finish
+          const userMessageID = input.assistantMessage.parentID
+
+          // Get current step's parts and accumulate for this turn
+          const currentParts = await MessageV2.parts(input.assistantMessage.id)
+          const existingParts = afwkTurnParts.get(userMessageID) ?? []
+          afwkTurnParts.set(userMessageID, [...existingParts, ...currentParts])
+
+          if (finishReason === "tool-calls") {
+            console.error(`[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: ${finishReason})`)
+            console.error(`[AFWK PROCESSOR] Turn parts count: ${afwkTurnParts.get(userMessageID)?.length ?? 0}`)
+            return "continue"
+          }
+
+          // Final step - validate with aggregated evidence from entire turn
+          console.error(`[AFWK PROCESSOR] Final step - validating with aggregated evidence`)
+          const aggregatedParts = afwkTurnParts.get(userMessageID) ?? currentParts
+          console.error(`[AFWK PROCESSOR] Aggregated parts count: ${aggregatedParts.length}`)
+
+          const userParts = await MessageV2.parts(userMessageID)
+          const userText = extractUserText(userParts)
+          const validation = await validateResponse(userText, aggregatedParts)
+
+          if (validation.enabled && !validation.valid) {
+            afwkRetryCount++
+            console.error(`[AFWK PROCESSOR] Validation FAILED (attempt ${afwkRetryCount}/${AFWK_MAX_RETRIES})`)
+            console.error(`[AFWK PROCESSOR] Reason: ${validation.reason}`)
+
+            if (afwkRetryCount < AFWK_MAX_RETRIES) {
+              // Add visual indicator that we're retrying
+              await Session.updatePart({
+                id: Identifier.ascending("part"),
+                messageID: input.assistantMessage.id,
+                sessionID: input.sessionID,
+                type: "text",
+                text: `\n\n⟳ *Reintentando con herramienta requerida...*\n`,
+                synthetic: true,
+              })
+
+              // Add retry suffix to system prompt and continue loop
+              const retrySuffix = generateRetrySystemSuffix(validation.intent)
+              streamInput.system = [...streamInput.system, retrySuffix]
+              console.error(`[AFWK PROCESSOR] Retrying with system suffix...`)
+              continue
+            } else {
+              // Max retries exceeded - add error part and stop
+              console.error(`[AFWK PROCESSOR] Max retries exceeded, stopping`)
+              afwkTurnParts.delete(userMessageID) // Clean up turn cache
+              await Session.updatePart({
+                id: Identifier.ascending("part"),
+                messageID: input.assistantMessage.id,
+                sessionID: input.sessionID,
+                type: "text",
+                text: `\n\n⚠️ **aiFRAMEWORK**: ${validation.reason}`,
+                synthetic: true,
+              })
+              return "stop"
+            }
+          } else if (validation.enabled) {
+            console.error(`[AFWK PROCESSOR] Validation PASSED`)
+            afwkTurnParts.delete(userMessageID) // Clean up turn cache
+            afwkRetryCount = 0 // Reset for next turn
+          }
+
           return "continue"
         }
       },

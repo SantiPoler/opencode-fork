@@ -181,6 +181,7 @@ export function showErrorNotification(error: Error): void {
 
 /**
  * Shows status bar message for AFWK status
+ * Clicking the status bar item will open the AFWK initialization modal
  */
 export function createAFWKStatusBarItem(): vscode.StatusBarItem {
   const statusBarItem = vscode.window.createStatusBarItem(
@@ -188,6 +189,7 @@ export function createAFWKStatusBarItem(): vscode.StatusBarItem {
     100
   );
   statusBarItem.name = 'dipoleCODE AFWK Status';
+  statusBarItem.command = 'dipolecode.checkAFWK';
   return statusBarItem;
 }
 
@@ -199,9 +201,11 @@ export function updateStatusBar(
   validationResult: ValidationResult | null,
   preference: AFWKPreference
 ): void {
+  const clickHint = '\n\nClick para configurar AFWK';
+
   if (preference === 'none') {
     statusBarItem.text = '$(circle-slash) AFWK: Desactivado';
-    statusBarItem.tooltip = 'Integración AFWK desactivada para este proyecto';
+    statusBarItem.tooltip = 'Integración AFWK desactivada para este proyecto' + clickHint;
     statusBarItem.backgroundColor = undefined;
   } else if (!validationResult) {
     statusBarItem.text = '$(loading~spin) AFWK: Verificando...';
@@ -209,15 +213,15 @@ export function updateStatusBar(
     statusBarItem.backgroundColor = undefined;
   } else if (validationResult.valid) {
     statusBarItem.text = '$(check) AFWK: Activo';
-    statusBarItem.tooltip = getValidationSummary(validationResult);
+    statusBarItem.tooltip = getValidationSummary(validationResult) + clickHint;
     statusBarItem.backgroundColor = undefined;
   } else if (validationResult.rootExists) {
     statusBarItem.text = '$(warning) AFWK: Incompleto';
-    statusBarItem.tooltip = getValidationSummary(validationResult);
+    statusBarItem.tooltip = getValidationSummary(validationResult) + clickHint;
     statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
   } else {
     statusBarItem.text = '$(circle-slash) AFWK: No detectado';
-    statusBarItem.tooltip = 'No se encontró estructura .afwk';
+    statusBarItem.tooltip = 'No se encontró estructura .afwk' + clickHint;
     statusBarItem.backgroundColor = undefined;
   }
 
