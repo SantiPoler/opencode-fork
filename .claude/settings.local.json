@@ -13,7 +13,18 @@
       "Bash(Get-ChildItem -Path $env:USERPROFILE -Filter \"*opencode*\" -Recurse -ErrorAction SilentlyContinue -Depth 3)",
       "Bash(Select-Object -First 20 FullName)",
       "Bash(dir:*)",
-      "Bash(bun test:*)"
+      "Bash(bun test:*)",
+      "WebSearch",
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(certutil -hashfile \"C:\\\\repos\\\\opencode-fork\\\\.opencode\\\\skill\\\\create-devtask\\\\SKILL.md\" SHA256)",
+      "Bash(certutil -hashfile \"C:\\\\repos\\\\opencode-fork\\\\.opencode\\\\skill\\\\create-aitask\\\\SKILL.md\" SHA256)",
+      "Bash(certutil -hashfile:*)",
+      "Bash(curl:*)",
+      "Bash(gh api:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

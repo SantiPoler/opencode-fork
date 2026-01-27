@@ -6,7 +6,63 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { getModalProvider, type ModalConfig, type ModalResult } from '../ui/modal';
+
+let outputChannel: vscode.OutputChannel | null = null;
+let outputChannelRegistered = false;
+
+function getOutputChannel(context?: vscode.ExtensionContext): vscode.OutputChannel {
+  if (!outputChannel) {
+    outputChannel = vscode.window.createOutputChannel('dipoleCODE');
+  }
+  if (context && !outputChannelRegistered) {
+    context.subscriptions.push(outputChannel);
+    outputChannelRegistered = true;
+  }
+  return outputChannel;
+}
+
+export function initializeStagingOutputChannel(context: vscode.ExtensionContext): void {
+  getOutputChannel(context);
+}
+
+function formatLogArgs(args: unknown[]): string {
+  if (!args.length) {
+    return '';
+  }
+  return args
+    .map((arg) => {
+      if (typeof arg === 'string') {
+        return arg;
+      }
+      try {
+        return JSON.stringify(arg);
+      } catch {
+        return String(arg);
+      }
+    })
+    .join(' ');
+}
+
+export function log(message: string, ...args: unknown[]): void {
+  const channel = getOutputChannel();
+  const suffix = formatLogArgs(args);
+  const line = suffix ? `[INFO] ${message} ${suffix}` : `[INFO] ${message}`;
+  channel.appendLine(line);
+}
+
+export function logError(message: string, ...args: unknown[]): void {
+  const channel = getOutputChannel();
+  const suffix = formatLogArgs(args);
+  const line = suffix ? `[ERROR] ${message} ${suffix}` : `[ERROR] ${message}`;
+  channel.appendLine(line);
+}
+
+export function logWarn(message: string, ...args: unknown[]): void {
+  const channel = getOutputChannel();
+  const suffix = formatLogArgs(args);
+  const line = suffix ? `[WARN] ${message} ${suffix}` : `[WARN] ${message}`;
+  channel.appendLine(line);
+}
 
 /**
  * Staging review event payload (matches TuiEvent.StagingReview)
@@ -20,182 +76,74 @@ export interface StagingReviewEvent {
 }
 
 /**
- * Button IDs for staging dialog
+ * Handle a file open event from the TUI server
+ * Opens a file directly in the editor (no staging, no confirmation needed)
  */
-const BUTTON_IDS = {
-  CONFIRM: 'staging-confirm',
-  CANCEL: 'staging-cancel',
-} as const;
+export async function handleFileOpen(
+  event: { filePath: string; reason?: string },
+  workspaceRoot: string
+): Promise<void> {
+  log('[dipoleCODE] Opening file:', event.filePath);
 
-/**
- * Human-readable document type labels
- */
-const DOCUMENT_TYPE_LABELS: Record<string, string> = {
-  'devtask-overview': 'DevTASK Overview',
-  'aitask-blueprint': 'AiTASK Blueprint',
-  'completion-notes': 'Completion Notes',
-  'document-update': 'Document Update',
-};
+  try {
+    // Build full path to file
+    const fullPath = path.join(workspaceRoot, event.filePath);
+    log('[dipoleCODE] Full path:', fullPath);
+
+    // Open the file in editor
+    const uri = vscode.Uri.file(fullPath);
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(doc, {
+      preview: false,
+      viewColumn: vscode.ViewColumn.One,
+    });
+
+    // Show notification if reason provided
+    if (event.reason) {
+      vscode.window.showInformationMessage(`dipoleCODE: ${event.reason}`);
+    }
+
+    log('[dipoleCODE] File opened successfully');
+  } catch (error) {
+    logError('[dipoleCODE] Error opening file:', error);
+    vscode.window.showErrorMessage(
+      `dipoleCODE: Error opening file: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
 
 /**
  * Handle a staging review event from the TUI server
- * 1. Opens the staged file in the editor
- * 2. Shows confirm/cancel dialog
- * 3. Sends result back to server
+ * Opens the staged file in the editor for user review
  */
 export async function handleStagingReview(
   port: number,
   event: StagingReviewEvent,
   workspaceRoot: string
 ): Promise<void> {
-  console.log('[dipoleCODE] Handling staging review:', event.stagingId);
-  console.log('[dipoleCODE] Staged path:', event.stagedPath);
-  console.log('[dipoleCODE] Workspace root:', workspaceRoot);
+  log('[dipoleCODE] Handling staging review:', event.stagingId);
+  log('[dipoleCODE] Staged path:', event.stagedPath);
+  log('[dipoleCODE] Workspace root:', workspaceRoot);
 
   try {
     // Build full path to staged file within .afwk/
     const fullStagedPath = path.join(workspaceRoot, '.afwk', event.stagedPath);
-    console.log('[dipoleCODE] Full staged path:', fullStagedPath);
+    log('[dipoleCODE] Full staged path:', fullStagedPath);
 
     // Open the staged file in editor
     const uri = vscode.Uri.file(fullStagedPath);
-    console.log('[dipoleCODE] Opening URI:', uri.fsPath);
+    log('[dipoleCODE] Opening URI:', uri.fsPath);
     const doc = await vscode.workspace.openTextDocument(uri);
-    const editor = await vscode.window.showTextDocument(doc, {
+    await vscode.window.showTextDocument(doc, {
       preview: false,
       viewColumn: vscode.ViewColumn.One,
     });
-    console.log('[dipoleCODE] Document opened successfully');
-
-    // Show the staging confirm/cancel dialog
-    const result = await showStagingConfirmDialog(event);
-
-    if (result.action === 'confirm') {
-      // Save any edits the user made
-      await doc.save();
-
-      // Send confirm request to server
-      await sendStagingConfirm(port, event.stagingId);
-
-      // Show success notification
-      vscode.window.showInformationMessage(
-        `dipoleCODE: Document saved to ${event.finalPath}`
-      );
-    } else {
-      // Send cancel request to server
-      await sendStagingCancel(port, event.stagingId);
-
-      // Show cancellation notification
-      vscode.window.showInformationMessage(
-        `dipoleCODE: Document staging cancelled`
-      );
-    }
-
-    // Close the editor
-    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    log('[dipoleCODE] Document opened successfully');
   } catch (error) {
-    console.error('[dipoleCODE] Error handling staging review:', error);
+    logError('[dipoleCODE] Error handling staging review:', error);
     vscode.window.showErrorMessage(
-      `dipoleCODE: Error handling staged document: ${error instanceof Error ? error.message : String(error)}`
+      `dipoleCODE: Error opening staged document: ${error instanceof Error ? error.message : String(error)}`
     );
-  }
-}
-
-/**
- * Dialog result for staging confirmation
- */
-interface StagingDialogResult {
-  action: 'confirm' | 'cancel';
-}
-
-/**
- * Show the staging confirmation dialog
- */
-async function showStagingConfirmDialog(
-  event: StagingReviewEvent
-): Promise<StagingDialogResult> {
-  const modalProvider = getModalProvider();
-  const documentTypeLabel = DOCUMENT_TYPE_LABELS[event.documentType] || event.documentType;
-
-  // Calculate time remaining
-  const expiresAt = new Date(event.expiresAt);
-  const now = new Date();
-  const hoursRemaining = Math.max(0, Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60)));
-
-  const config: ModalConfig = {
-    id: `staging-review-${event.stagingId}`,
-    title: 'dipoleCODE - Revisar Documento',
-    subtitle: documentTypeLabel,
-    template: 'single',
-    icon: 'info',
-    content: {
-      heading: 'Documento preparado para revisión',
-      description:
-        'El documento ha sido generado y está listo para tu revisión. ' +
-        'Puedes editarlo en el editor antes de confirmar. ' +
-        'Los cambios se guardarán automáticamente al confirmar.',
-      details: [
-        `Tipo: ${documentTypeLabel}`,
-        `Destino: .afwk/${event.finalPath}`,
-        `Expira en: ${hoursRemaining} horas`,
-      ],
-    },
-    buttons: [
-      {
-        id: BUTTON_IDS.CONFIRM,
-        label: 'Confirmar y Guardar',
-        variant: 'primary',
-      },
-      {
-        id: BUTTON_IDS.CANCEL,
-        label: 'Cancelar',
-        variant: 'secondary',
-      },
-    ],
-  };
-
-  const result: ModalResult = await modalProvider.showModal(config);
-
-  // Default to cancel if dialog was dismissed without clicking a button
-  if (result.buttonId === BUTTON_IDS.CONFIRM) {
-    return { action: 'confirm' };
-  }
-  return { action: 'cancel' };
-}
-
-/**
- * Send staging confirmation to server
- */
-async function sendStagingConfirm(port: number, stagingId: string): Promise<void> {
-  const response = await fetch(`http://localhost:${port}/tui/staging/confirm`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ stagingId }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to confirm staging: ${error}`);
-  }
-}
-
-/**
- * Send staging cancellation to server
- */
-async function sendStagingCancel(port: number, stagingId: string): Promise<void> {
-  const response = await fetch(`http://localhost:${port}/tui/staging/cancel`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ stagingId }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to cancel staging: ${error}`);
   }
 }
 
@@ -214,6 +162,7 @@ export function startStagingEventListener(
   workspaceRoot: string,
   context: vscode.ExtensionContext
 ): void {
+  getOutputChannel(context);
   // Avoid duplicate connections
   if (sseAbortController && ssePort === port) {
     return;
@@ -226,14 +175,16 @@ export function startStagingEventListener(
   ssePort = port;
 
   // Start SSE connection in background
-  startSSEConnection(port, workspaceRoot, sseAbortController.signal);
+  startSSEConnection(port, workspaceRoot, sseAbortController.signal).catch((error) => {
+    logError('[dipoleCODE] SSE connection failed:', error);
+  });
 
   // Add cleanup on extension deactivation
   context.subscriptions.push({
     dispose: () => stopStagingEventListener(),
   });
 
-  console.log('[dipoleCODE] Staging event listener started on port', port);
+  log('[dipoleCODE] Staging event listener started on port', port);
 }
 
 /**
@@ -244,66 +195,98 @@ async function startSSEConnection(
   workspaceRoot: string,
   signal: AbortSignal
 ): Promise<void> {
-  try {
-    const response = await fetch(`http://localhost:${port}/event`, {
-      headers: {
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-      },
-      signal,
-    });
+  let attempt = 0;
+  let reviewChain = Promise.resolve();
 
-    if (!response.ok || !response.body) {
-      console.error('[dipoleCODE] SSE connection failed:', response.status);
-      return;
-    }
+  while (!signal.aborted) {
+    try {
+      const response = await fetch(`http://localhost:${port}/event`, {
+        headers: {
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        },
+        signal,
+      });
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        console.log('[dipoleCODE] SSE connection closed');
-        break;
+      if (!response.ok || !response.body) {
+        throw new Error(`SSE connection failed with status ${response.status}`);
       }
 
-      buffer += decoder.decode(value, { stream: true });
+      attempt = 0;
+      log('[dipoleCODE] SSE connected');
 
-      // Process complete SSE messages (separated by double newline)
-      const messages = buffer.split('\n\n');
-      buffer = messages.pop() || ''; // Keep incomplete message in buffer
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const stream = response.body as unknown as AsyncIterable<Uint8Array>;
 
-      for (const message of messages) {
-        if (!message.trim()) continue;
+      for await (const chunk of stream) {
+        buffer += decoder.decode(chunk, { stream: true });
 
-        // Parse SSE format: "data: {...}"
-        const dataMatch = message.match(/^data:\s*(.+)$/m);
-        if (!dataMatch) continue;
+        // Process complete SSE messages (separated by double newline)
+        const messages = buffer.split(/\r?\n\r?\n/);
+        buffer = messages.pop() || ''; // Keep incomplete message in buffer
 
-        try {
-          const data = JSON.parse(dataMatch[1]);
-          console.log('[dipoleCODE] SSE event received:', data.type);
+        for (const message of messages) {
+          if (!message.trim()) continue;
 
-          // Check if this is a staging review event
-          if (data.type === 'tui.staging.review') {
-            console.log('[dipoleCODE] Staging review event detected!');
-            const stagingEvent = data.properties as StagingReviewEvent;
-            await handleStagingReview(port, stagingEvent, workspaceRoot);
+          const dataLines = message
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trimStart());
+
+          if (!dataLines.length) continue;
+
+          const dataPayload = dataLines.join('\n');
+
+          try {
+            const data = JSON.parse(dataPayload);
+            if (data?.type === 'server.heartbeat') {
+              continue;
+            }
+            log('[dipoleCODE] SSE event received:', data?.type);
+
+            if (data?.type === 'tui.staging.review') {
+              log('[dipoleCODE] Staging review event detected!');
+              const stagingEvent = data.properties as StagingReviewEvent;
+              reviewChain = reviewChain
+                .then(() => handleStagingReview(port, stagingEvent, workspaceRoot))
+                .catch((error) => {
+                  logError('[dipoleCODE] Failed to handle staging review:', error);
+                });
+            }
+
+            // Handle file open events (non-staging, direct file opening)
+            if (data?.type === 'tui.file.open') {
+              log('[dipoleCODE] File open event detected!');
+              const fileOpenEvent = data.properties as { filePath: string; reason?: string };
+              handleFileOpen(fileOpenEvent, workspaceRoot).catch((error) => {
+                logError('[dipoleCODE] Failed to open file:', error);
+              });
+            }
+          } catch {
+            // Ignore parse errors for non-JSON messages
           }
-        } catch (parseError) {
-          // Ignore parse errors for non-JSON messages (like heartbeats)
         }
       }
+
+      if (!signal.aborted) {
+        log('[dipoleCODE] SSE connection closed');
+      }
+    } catch (error) {
+      if (signal.aborted) {
+        log('[dipoleCODE] SSE connection aborted');
+        break;
+      }
+      logError('[dipoleCODE] SSE connection error:', error);
     }
-  } catch (error) {
+
     if (signal.aborted) {
-      console.log('[dipoleCODE] SSE connection aborted');
-    } else {
-      console.error('[dipoleCODE] SSE connection error:', error);
+      break;
     }
+
+    const delayMs = Math.min(1000 * Math.pow(2, attempt), 10000);
+    attempt += 1;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 }
 
@@ -315,6 +298,6 @@ export function stopStagingEventListener(): void {
     sseAbortController.abort();
     sseAbortController = null;
     ssePort = null;
-    console.log('[dipoleCODE] Staging event listener stopped');
+    log('[dipoleCODE] Staging event listener stopped');
   }
 }

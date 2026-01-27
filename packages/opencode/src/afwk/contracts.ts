@@ -22,6 +22,15 @@ export const AFWK_TOOL_IDS = {
   updateLatestImplementation: "afwk_update_latest_implementation",
   // Agent-driven content generation
   updateDocument: "afwk_update_document",
+  // Primitive filesystem operations (restricted to .afwk)
+  fileExists: "afwk_file_exists",
+  createFile: "afwk_create_file",
+  folderExists: "afwk_folder_exists",
+  // Remote sync operations (dipole.work API)
+  getConfig: "afwk_get_config",
+  setConfig: "afwk_set_config",
+  fetchRemoteDevtasks: "afwk_fetch_remote_devtasks",
+  pullDevtask: "afwk_pull_devtask",
 } as const
 
 // TOOL REGISTRY - Categorizes tools for policy gate validation
@@ -30,6 +39,10 @@ export const TOOL_REGISTRY = {
     AFWK_TOOL_IDS.getKanbanStatus,
     AFWK_TOOL_IDS.getSteeringContext,
     AFWK_TOOL_IDS.validateDevTask,
+    AFWK_TOOL_IDS.fileExists,
+    AFWK_TOOL_IDS.folderExists,
+    AFWK_TOOL_IDS.getConfig,
+    AFWK_TOOL_IDS.fetchRemoteDevtasks,
   ],
   mutators: [
     AFWK_TOOL_IDS.moveKanbanTask,
@@ -38,6 +51,9 @@ export const TOOL_REGISTRY = {
     AFWK_TOOL_IDS.completeAiTask,
     AFWK_TOOL_IDS.updateLatestImplementation,
     AFWK_TOOL_IDS.updateDocument,
+    AFWK_TOOL_IDS.createFile,
+    AFWK_TOOL_IDS.setConfig,
+    AFWK_TOOL_IDS.pullDevtask,
   ],
 } as const
 

@@ -2,18 +2,63 @@
 export function deactivate() {}
 
 import * as vscode from "vscode"
+import * as path from "path"
+import * as fs from "fs"
+import * as os from "os"
 import { initializeAFWK } from "./afwk"
 import { initializeModalProvider } from "./ui/modal"
-import { startStagingEventListener } from "./afwk/staging"
+import { initializeStagingOutputChannel, startStagingEventListener, log, logError } from "./afwk/staging"
+import { createDevTaskUriHandler } from "./devtask"
 
 const TERMINAL_NAME = "dipoleCODE"
+const terminalPortMap = new WeakMap<vscode.Terminal, number>()
+
+/**
+ * Get the path to the bundled dipoleCODE binary.
+ * Throws an error if the binary is not found - no fallback to PATH.
+ */
+function getBinaryPath(extensionPath: string): string {
+  const platform = os.platform()
+  const arch = os.arch()
+
+  // Map Node.js platform/arch to binary names
+  let binaryName: string
+  if (platform === "win32") {
+    binaryName = `opencode-win32-${arch === "arm64" ? "arm64" : "x64"}.exe`
+  } else if (platform === "darwin") {
+    binaryName = `opencode-darwin-${arch === "arm64" ? "arm64" : "x64"}`
+  } else {
+    // Linux
+    binaryName = `opencode-linux-${arch === "arm64" ? "arm64" : "x64"}`
+  }
+
+  const bundledPath = path.join(extensionPath, "bin", binaryName)
+
+  // Check if bundled binary exists
+  if (fs.existsSync(bundledPath)) {
+    log(`Using bundled binary: ${bundledPath}`)
+    return bundledPath
+  }
+
+  // No fallback - fail explicitly if binary not found
+  const errorMsg = `Bundled binary not found at ${bundledPath}. Platform: ${platform}, Arch: ${arch}`
+  logError(errorMsg)
+  throw new Error(errorMsg)
+}
 
 export async function activate(context: vscode.ExtensionContext) {
+  initializeStagingOutputChannel(context)
   // Initialize the custom modal system
   initializeModalProvider({ extensionUri: context.extensionUri })
 
   // Initialize AFWK structure detection
   await initializeAFWK(context)
+
+  // Register URI handler for devTASK operations (dipolestudio://devtask?...)
+  const uriHandler = createDevTaskUriHandler()
+  context.subscriptions.push(vscode.window.registerUriHandler(uriHandler))
+  log("URI handler registered for dipolestudio:// protocol")
+
   let panel: vscode.WebviewPanel | undefined
   let panelPort: number | undefined
 
@@ -76,37 +121,51 @@ export async function activate(context: vscode.ExtensionContext) {
       return
     }
 
-    console.log("[dipoleCODE] Terminal created, waiting for server...")
+    log("Terminal created, waiting for server...")
 
-    // Get port from terminal environment
-    // @ts-ignore
-    const portStr = terminal.creationOptions?.env?.["_EXTENSION_DIPOLECODE_PORT"]
-    if (!portStr) {
-      console.log("[dipoleCODE] No port found in terminal environment")
+    const port = getTerminalPort(terminal)
+    if (!port) {
+      logError("No port found in terminal environment")
       return
     }
 
-    const port = parseInt(portStr)
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 
     if (!workspaceFolder) {
-      console.log("[dipoleCODE] No workspace folder found")
+      logError("No workspace folder found")
       return
     }
+
+    startStagingEventListener(port, workspaceFolder, context)
 
     // Wait for server to be ready
     const connected = await waitForServer(port)
     if (connected) {
-      console.log("[dipoleCODE] Server connected, starting SSE listener on port", port)
-      startStagingEventListener(port, workspaceFolder, context)
+      log("Server connected on port", port)
     } else {
-      console.log("[dipoleCODE] Failed to connect to server on port", port)
+      logError("Failed to connect to server on port", port)
     }
   })
 
   context.subscriptions.push(openTerminalDisposable, openNewTerminalDisposable, addFilepathDisposable, emptyTreeDataProvider, terminalOpenDisposable)
 
-  console.log("[dipoleCODE] Extension activated successfully")
+  log("Extension activated successfully")
+
+  const existingWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+  const lastPort = context.globalState.get<number>("dipolecode.lastPort")
+  if (existingWorkspace && lastPort) {
+    startStagingEventListener(lastPort, existingWorkspace, context)
+  }
+
+  for (const terminal of vscode.window.terminals) {
+    if (terminal.name !== TERMINAL_NAME) {
+      continue
+    }
+    const port = getTerminalPort(terminal)
+    if (port && existingWorkspace) {
+      startStagingEventListener(port, existingWorkspace, context)
+    }
+  }
 
   async function openTerminal() {
     // Create a new terminal in split screen
@@ -115,23 +174,22 @@ export async function activate(context: vscode.ExtensionContext) {
       location: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
     })
 
-    const fileRef = getActiveFile()
-    if (!fileRef) {
-      return
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    if (workspaceFolder) {
+      startStagingEventListener(port, workspaceFolder, context)
     }
 
     const connected = await waitForServer(port)
 
-    // If connected, append the prompt to the terminal and start staging listener
+    // If connected, append the prompt to the terminal
     if (connected) {
-      await appendPrompt(port, `In ${fileRef}`)
+      const fileRef = getActiveFile()
+      if (fileRef) {
+        await appendPrompt(port, `In ${fileRef}`)
+      }
       terminal.show()
 
       // Start listening for staging events
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
-      if (workspaceFolder) {
-        startStagingEventListener(port, workspaceFolder, context)
-      }
     }
   }
 
@@ -213,7 +271,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const terminal = vscode.window.createTerminal({
       name: TERMINAL_NAME,
-      shellPath: "opencode",
+      shellPath: getBinaryPath(context.extensionPath),
       shellArgs,
       cwd: workspaceFolder,
       iconPath: new vscode.ThemeIcon("terminal"),
@@ -223,6 +281,8 @@ export async function activate(context: vscode.ExtensionContext) {
         DIPOLECODE_CALLER: "vscode",
       },
     })
+    terminalPortMap.set(terminal, port)
+    context.globalState.update("dipolecode.lastPort", port)
 
     if (options.show) {
       terminal.show()
@@ -232,26 +292,26 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   function getTerminalPort(terminal: vscode.Terminal): number | undefined {
+    const mappedPort = terminalPortMap.get(terminal)
+    if (mappedPort) {
+      return mappedPort
+    }
     // @ts-ignore
     const port = terminal.creationOptions?.env?.["_EXTENSION_DIPOLECODE_PORT"]
     return port ? Number(port) : undefined
   }
 
-  async function waitForServer(port: number) {
-    let tries = 10
-    let connected = false
-    do {
+  async function waitForServer(port: number, timeoutMs: number = 10000) {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
       await new Promise((resolve) => setTimeout(resolve, 200))
       try {
         await fetch(`http://localhost:${port}/app`)
-        connected = true
-        break
+        return true
       } catch (e) {}
+    }
 
-      tries--
-    } while (tries > 0)
-
-    return connected
+    return false
   }
 
   function getPanelHtml(port: number) {

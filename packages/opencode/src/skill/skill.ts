@@ -7,6 +7,8 @@ import { Log } from "../util/log"
 import { Global } from "@/global"
 import { Filesystem } from "@/util/filesystem"
 import { Flag } from "@/flag/flag"
+import { loadEmbeddedSkills } from "./embedded"
+import { SKILL_DIRS } from "./constants"
 
 export namespace Skill {
   const log = Log.create({ service: "skill" })
@@ -37,9 +39,32 @@ export namespace Skill {
 
   const OPENCODE_SKILL_GLOB = new Bun.Glob("{skill,skills}/**/SKILL.md")
   const CLAUDE_SKILL_GLOB = new Bun.Glob("skills/**/SKILL.md")
+  /** Glob for flat skill directories (user/cached sources) */
+  const FLAT_SKILL_GLOB = new Bun.Glob("*/SKILL.md")
 
   export const state = Instance.state(async () => {
     const skills: Record<string, Info> = {}
+
+    // Load embedded skills first (lowest priority - can be overridden by filesystem skills)
+    try {
+      const embeddedSkills = await loadEmbeddedSkills()
+      for (const embedded of embeddedSkills) {
+        const md = ConfigMarkdown.parseContent(embedded.content)
+        if (!md) continue
+
+        const parsed = Info.pick({ name: true, description: true }).safeParse(md.data)
+        if (!parsed.success) continue
+
+        skills[parsed.data.name] = {
+          name: parsed.data.name,
+          description: parsed.data.description,
+          location: embedded.path, // Use the embedded path (will be $bunfs/... in compiled binary)
+        }
+        log.debug("loaded embedded skill", { name: parsed.data.name })
+      }
+    } catch (error) {
+      log.debug("no embedded skills available", { error })
+    }
 
     const addSkill = async (match: string) => {
       const md = await ConfigMarkdown.parse(match)
@@ -109,6 +134,42 @@ export namespace Skill {
         onlyFiles: true,
         followSymlinks: true,
       })) {
+        await addSkill(match)
+      }
+    }
+
+    // Scan user-level skills (~/.config/opencode/skill/)
+    if (await Filesystem.isDir(SKILL_DIRS.user)) {
+      const userMatches = await Array.fromAsync(
+        FLAT_SKILL_GLOB.scan({
+          cwd: SKILL_DIRS.user,
+          absolute: true,
+          onlyFiles: true,
+          followSymlinks: true,
+        }),
+      ).catch((error) => {
+        log.debug("failed to scan user skill directory", { dir: SKILL_DIRS.user, error })
+        return []
+      })
+      for (const match of userMatches) {
+        await addSkill(match)
+      }
+    }
+
+    // Scan cached skills from remote sync (~/.aifwk/cache/skills/)
+    if (await Filesystem.isDir(SKILL_DIRS.cached)) {
+      const cachedMatches = await Array.fromAsync(
+        FLAT_SKILL_GLOB.scan({
+          cwd: SKILL_DIRS.cached,
+          absolute: true,
+          onlyFiles: true,
+          followSymlinks: true,
+        }),
+      ).catch((error) => {
+        log.debug("failed to scan cached skill directory", { dir: SKILL_DIRS.cached, error })
+        return []
+      })
+      for (const match of cachedMatches) {
         await addSkill(match)
       }
     }

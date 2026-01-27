@@ -13,6 +13,7 @@ import type {
   ModalTheme,
 } from './types';
 import { generateModalHTML } from './templates';
+import { logWarn } from '../../afwk/staging';
 
 /**
  * Result from the native modal command
@@ -98,7 +99,7 @@ export class ModalProvider {
       return { buttonId: result.buttonId };
     } catch (error) {
       // Fallback to webview modal if native fails
-      console.warn('Native modal failed, falling back to webview:', error);
+      logWarn('Native modal failed, falling back to webview:', error);
       return this.showWebviewModal<T>(config);
     }
   }

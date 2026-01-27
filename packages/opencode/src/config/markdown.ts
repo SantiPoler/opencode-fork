@@ -31,6 +31,20 @@ export namespace ConfigMarkdown {
     }
   }
 
+  /**
+   * Parse markdown content directly from a string (for embedded content)
+   * @param content - The markdown content string to parse
+   * @returns Parsed frontmatter and content, or null on error
+   */
+  export function parseContent(content: string) {
+    try {
+      const md = matter(content)
+      return md
+    } catch {
+      return null
+    }
+  }
+
   export const FrontmatterError = NamedError.create(
     "ConfigFrontmatterError",
     z.object({

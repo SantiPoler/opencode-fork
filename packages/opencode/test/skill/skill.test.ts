@@ -46,11 +46,12 @@ Instructions here.
     directory: tmp.path,
     fn: async () => {
       const skills = await Skill.all()
-      expect(skills.length).toBe(1)
+      // Verify the expected skill exists (may have embedded skills too)
       const testSkill = skills.find((s) => s.name === "test-skill")
       expect(testSkill).toBeDefined()
       expect(testSkill!.description).toBe("A test skill for verification.")
-      expect(testSkill!.location).toContain("skill/test-skill/SKILL.md")
+      // Normalize path separators for cross-platform
+      expect(testSkill!.location.replace(/\\/g, "/")).toContain("skill/test-skill/SKILL.md")
     },
   })
 })
@@ -88,7 +89,7 @@ description: Second test skill.
     directory: tmp.path,
     fn: async () => {
       const skills = await Skill.all()
-      expect(skills.length).toBe(2)
+      // Verify expected skills exist (may have embedded skills too)
       expect(skills.find((s) => s.name === "skill-one")).toBeDefined()
       expect(skills.find((s) => s.name === "skill-two")).toBeDefined()
     },
@@ -114,7 +115,8 @@ Just some content without YAML frontmatter.
     directory: tmp.path,
     fn: async () => {
       const skills = await Skill.all()
-      expect(skills).toEqual([])
+      // Skill with missing frontmatter should not be loaded
+      expect(skills.find((s) => s.name === "no-frontmatter")).toBeUndefined()
     },
   })
 })
@@ -141,10 +143,11 @@ description: A skill in the .claude/skills directory.
     directory: tmp.path,
     fn: async () => {
       const skills = await Skill.all()
-      expect(skills.length).toBe(1)
+      // Verify expected skill exists (may have embedded skills too)
       const claudeSkill = skills.find((s) => s.name === "claude-skill")
       expect(claudeSkill).toBeDefined()
-      expect(claudeSkill!.location).toContain(".claude/skills/claude-skill/SKILL.md")
+      // Normalize path separators for cross-platform
+      expect(claudeSkill!.location.replace(/\\/g, "/")).toContain(".claude/skills/claude-skill/SKILL.md")
     },
   })
 })
@@ -161,10 +164,12 @@ test("discovers global skills from ~/.claude/skills/ directory", async () => {
       directory: tmp.path,
       fn: async () => {
         const skills = await Skill.all()
-        expect(skills.length).toBe(1)
-        expect(skills[0].name).toBe("global-test-skill")
-        expect(skills[0].description).toBe("A global skill from ~/.claude/skills for testing.")
-        expect(skills[0].location).toContain(".claude/skills/global-test-skill/SKILL.md")
+        // Verify expected skill exists (may have embedded skills too)
+        const globalSkill = skills.find((s) => s.name === "global-test-skill")
+        expect(globalSkill).toBeDefined()
+        expect(globalSkill!.description).toBe("A global skill from ~/.claude/skills for testing.")
+        // Normalize path separators for cross-platform
+        expect(globalSkill!.location.replace(/\\/g, "/")).toContain(".claude/skills/global-test-skill/SKILL.md")
       },
     })
   } finally {
@@ -172,14 +177,19 @@ test("discovers global skills from ~/.claude/skills/ directory", async () => {
   }
 })
 
-test("returns empty array when no skills exist", async () => {
+test("handles directory with no local skills", async () => {
   await using tmp = await tmpdir({ git: true })
 
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
       const skills = await Skill.all()
-      expect(skills).toEqual([])
+      // May have embedded skills, but no local skills from this temp directory
+      const localSkillsInTmp = skills.filter((s) =>
+        s.location.includes(tmp.path.replace(/\\/g, "/")) ||
+        s.location.includes(tmp.path)
+      )
+      expect(localSkillsInTmp).toEqual([])
     },
   })
 })

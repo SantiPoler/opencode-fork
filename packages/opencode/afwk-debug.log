@@ -381,3 +381,51 @@ $ bun run --conditions=browser ./src/index.ts "C:\\repos\\test-project"
 [AFWK INTEGRATION] Final Decision: accept
 [AFWK INTEGRATION] Result: VALID
 [AFWK PROCESSOR] Validation PASSED
+[2026-01-22T19:48:43.197Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.197Z] [DEBUG] [CLASSIFIER]  User Message: "Necesito una feature para saber cual es el estado de las host computers"
+[2026-01-22T19:48:43.199Z] [DEBUG] [CLASSIFIER]  No patterns matched
+[2026-01-22T19:48:43.199Z] [DEBUG] [CLASSIFIER]  Result: conversation
+[2026-01-22T19:48:43.200Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.200Z] [DEBUG] [CLASSIFIER]  User Message: "cual es el estado del servidor"
+[2026-01-22T19:48:43.201Z] [DEBUG] [CLASSIFIER]  No patterns matched
+[2026-01-22T19:48:43.201Z] [DEBUG] [CLASSIFIER]  Result: conversation
+[2026-01-22T19:48:43.202Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.202Z] [DEBUG] [CLASSIFIER]  User Message: "muestra el estado de la base de datos"
+[2026-01-22T19:48:43.203Z] [DEBUG] [CLASSIFIER]  No patterns matched
+[2026-01-22T19:48:43.203Z] [DEBUG] [CLASSIFIER]  Result: conversation
+[2026-01-22T19:48:43.204Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.204Z] [DEBUG] [CLASSIFIER]  User Message: "cual es el estado del kanban"
+[2026-01-22T19:48:43.205Z] [DEBUG] [CLASSIFIER]  Matched read pattern #1
+[2026-01-22T19:48:43.205Z] [DEBUG] [CLASSIFIER]  Result: read
+[2026-01-22T19:48:43.206Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.207Z] [DEBUG] [CLASSIFIER]  User Message: "cual es el estado de las tareas"
+[2026-01-22T19:48:43.207Z] [DEBUG] [CLASSIFIER]  Matched read pattern #2
+[2026-01-22T19:48:43.208Z] [DEBUG] [CLASSIFIER]  Result: read
+[2026-01-22T19:48:43.208Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.209Z] [DEBUG] [CLASSIFIER]  User Message: "que hay en backlog"
+[2026-01-22T19:48:43.209Z] [DEBUG] [CLASSIFIER]  Matched read pattern #3
+[2026-01-22T19:48:43.210Z] [DEBUG] [CLASSIFIER]  Result: read
+[2026-01-22T19:48:43.210Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.211Z] [DEBUG] [CLASSIFIER]  User Message: "cuantas tareas hay"
+[2026-01-22T19:48:43.211Z] [DEBUG] [CLASSIFIER]  Matched read pattern #4
+[2026-01-22T19:48:43.211Z] [DEBUG] [CLASSIFIER]  Result: read
+[2026-01-22T19:48:43.212Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.212Z] [DEBUG] [CLASSIFIER]  User Message: "muestrame las tareas pendientes"
+[2026-01-22T19:48:43.213Z] [DEBUG] [CLASSIFIER]  Matched read pattern #5
+[2026-01-22T19:48:43.213Z] [DEBUG] [CLASSIFIER]  Result: read
+[2026-01-22T19:48:43.214Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.215Z] [DEBUG] [CLASSIFIER]  User Message: "kanban"
+[2026-01-22T19:48:43.215Z] [DEBUG] [CLASSIFIER]  Matched read pattern #1
+[2026-01-22T19:48:43.216Z] [DEBUG] [CLASSIFIER]  Result: read
+[2026-01-22T19:48:43.216Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.217Z] [DEBUG] [CLASSIFIER]  User Message: "show me the devtasks"
+[2026-01-22T19:48:43.217Z] [DEBUG] [CLASSIFIER]  Matched read pattern #5
+[2026-01-22T19:48:43.218Z] [DEBUG] [CLASSIFIER]  Result: read
+[2026-01-22T19:48:43.218Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.219Z] [DEBUG] [CLASSIFIER]  User Message: "crea un devtask"
+[2026-01-22T19:48:43.219Z] [DEBUG] [CLASSIFIER]  Matched mutation pattern #3
+[2026-01-22T19:48:43.220Z] [DEBUG] [CLASSIFIER]  Result: mutation
+[2026-01-22T19:48:43.220Z] [DEBUG] [CLASSIFIER]  ========== Intent Classification ==========
+[2026-01-22T19:48:43.221Z] [DEBUG] [CLASSIFIER]  User Message: "mueve devtask-01 a todo"
+[2026-01-22T19:48:43.221Z] [DEBUG] [CLASSIFIER]  Matched mutation pattern #1
+[2026-01-22T19:48:43.222Z] [DEBUG] [CLASSIFIER]  Result: mutation

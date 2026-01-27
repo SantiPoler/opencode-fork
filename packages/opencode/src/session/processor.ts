@@ -16,6 +16,7 @@ import { SessionCompaction } from "./compaction"
 import { PermissionNext } from "@/permission/next"
 import { Question } from "@/question"
 import { validateResponse, generateRetrySystemSuffix, extractUserText } from "@/afwk/integration"
+import { AfwkLog } from "@/afwk/logger"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -416,15 +417,15 @@ export namespace SessionProcessor {
           afwkTurnParts.set(userMessageID, [...existingParts, ...currentParts])
 
           if (finishReason === "tool-calls") {
-            console.error(`[AFWK PROCESSOR] Accumulating parts - LLM waiting for tool results (finish: ${finishReason})`)
-            console.error(`[AFWK PROCESSOR] Turn parts count: ${afwkTurnParts.get(userMessageID)?.length ?? 0}`)
+            AfwkLog.debug("[AFWK PROCESSOR]", `Accumulating parts - LLM waiting for tool results (finish: ${finishReason})`)
+            AfwkLog.debug("[AFWK PROCESSOR]", `Turn parts count: ${afwkTurnParts.get(userMessageID)?.length ?? 0}`)
             return "continue"
           }
 
           // Final step - validate with aggregated evidence from entire turn
-          console.error(`[AFWK PROCESSOR] Final step - validating with aggregated evidence`)
+          AfwkLog.debug("[AFWK PROCESSOR]", "Final step - validating with aggregated evidence")
           const aggregatedParts = afwkTurnParts.get(userMessageID) ?? currentParts
-          console.error(`[AFWK PROCESSOR] Aggregated parts count: ${aggregatedParts.length}`)
+          AfwkLog.debug("[AFWK PROCESSOR]", `Aggregated parts count: ${aggregatedParts.length}`)
 
           const userParts = await MessageV2.parts(userMessageID)
           const userText = extractUserText(userParts)
@@ -432,8 +433,8 @@ export namespace SessionProcessor {
 
           if (validation.enabled && !validation.valid) {
             afwkRetryCount++
-            console.error(`[AFWK PROCESSOR] Validation FAILED (attempt ${afwkRetryCount}/${AFWK_MAX_RETRIES})`)
-            console.error(`[AFWK PROCESSOR] Reason: ${validation.reason}`)
+            AfwkLog.warn("[AFWK PROCESSOR]", `Validation FAILED (attempt ${afwkRetryCount}/${AFWK_MAX_RETRIES})`)
+            AfwkLog.warn("[AFWK PROCESSOR]", `Reason: ${validation.reason}`)
 
             if (afwkRetryCount < AFWK_MAX_RETRIES) {
               // Add visual indicator that we're retrying
@@ -449,11 +450,11 @@ export namespace SessionProcessor {
               // Add retry suffix to system prompt and continue loop
               const retrySuffix = generateRetrySystemSuffix(validation.intent)
               streamInput.system = [...streamInput.system, retrySuffix]
-              console.error(`[AFWK PROCESSOR] Retrying with system suffix...`)
+              AfwkLog.debug("[AFWK PROCESSOR]", "Retrying with system suffix...")
               continue
             } else {
               // Max retries exceeded - add error part and stop
-              console.error(`[AFWK PROCESSOR] Max retries exceeded, stopping`)
+              AfwkLog.error("[AFWK PROCESSOR]", "Max retries exceeded, stopping")
               afwkTurnParts.delete(userMessageID) // Clean up turn cache
               await Session.updatePart({
                 id: Identifier.ascending("part"),
@@ -466,7 +467,7 @@ export namespace SessionProcessor {
               return "stop"
             }
           } else if (validation.enabled) {
-            console.error(`[AFWK PROCESSOR] Validation PASSED`)
+            AfwkLog.info("[AFWK PROCESSOR]", "Validation PASSED")
             afwkTurnParts.delete(userMessageID) // Clean up turn cache
             afwkRetryCount = 0 // Reset for next turn
           }

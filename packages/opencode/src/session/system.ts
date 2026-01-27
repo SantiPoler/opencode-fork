@@ -20,6 +20,7 @@ import { Flag } from "@/flag/flag"
 import { isInitialized as isAfwkInitialized, getStateDir } from "../afwk/state"
 import { generateSystemPrompt } from "../afwk/system-prompt"
 import * as fs from "fs/promises"
+import { getSkillIndex, buildSkillIndexSection } from "../skill"
 
 export namespace SystemPrompt {
   export function header(providerID: string) {
@@ -137,6 +138,26 @@ export namespace SystemPrompt {
         .then((x) => (x ? "Instructions from: " + url + "\n" + x : "")),
     )
     return Promise.all([...foundFiles, ...foundUrls]).then((result) => result.filter(Boolean))
+  }
+
+  /**
+   * Genera la sección de skills disponibles para el contexto LLM.
+   * Escanea skills de múltiples fuentes y genera una tabla markdown.
+   */
+  export async function skills(): Promise<string[]> {
+    try {
+      const index = await getSkillIndex()
+
+      if (index.skills.length === 0) {
+        return []
+      }
+
+      const section = buildSkillIndexSection(index)
+      return section ? [section] : []
+    } catch (error) {
+      console.warn("[skills] Error generating skill index:", error)
+      return []
+    }
   }
 
   /**

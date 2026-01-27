@@ -37,18 +37,24 @@ export function classifyIntent(userMessage: string): IntentType {
     /\b(mueve|mover|pasa|pasar|move)\b.{0,30}\b(devtask|aitask|tarea)[-_]?\d{2}/i,
   ]
 
-  // READ: preguntas sobre estado
+  // READ: preguntas sobre estado del KANBAN (debe incluir terminos de kanban/tareas)
   const readPatterns = [
-    // Patron: preguntas sobre estado en espanol
-    /\b(que hay|cual es el estado|estado del|lista de|muestrame|kanban)\b/i,
-    // Patron: cuantas/cuantos + tareas
-    /\b(cuantas?|cuantos?)\s*(tareas?|tasks?|hay)\b/i,
-    // Patron: preguntas sobre estado en ingles
-    /\b(show me|what'?s|status|list|how many|pending|current state)\b/i,
-    // Patron: consultas de tareas
-    /\b(tareas?|tasks?|devtasks?)\s+(en|in|pendientes?|activas?|actuales?)\b/i,
-    // Patron: consultas directas sobre columnas
-    /\b(que|what).{0,20}(backlog|todo|in_progress|completed)\b/i,
+    // Patron: "kanban" explicito (siempre es read)
+    /\bkanban\b/i,
+    // Patron: preguntas sobre estado + termino de kanban/tareas
+    /\b(cual es el estado|estado del?|what'?s the status)\b.{0,30}\b(kanban|tareas?|tasks?|devtask|aitask|tablero|board)\b/i,
+    // Patron: "que hay" + termino de kanban/columna
+    /\b(que hay|what'?s)\b.{0,20}\b(en el kanban|en backlog|en todo|en in_progress|en completed|in backlog|in todo)\b/i,
+    // Patron: cuantas/cuantos + tareas/devtasks
+    /\b(cuantas?|cuantos?|how many)\s*.{0,10}\b(tareas?|tasks?|devtasks?|aitasks?)\b/i,
+    // Patron: lista/muestrame + tareas/kanban
+    /\b(lista de|muestrame|show me|list)\b.{0,20}\b(tareas?|tasks?|devtasks?|kanban)\b/i,
+    // Patron: consultas de tareas + estado
+    /\b(tareas?|tasks?|devtasks?)\s+(pendientes?|activas?|actuales?|en progreso|pending|active|current)\b/i,
+    // Patron: consultas directas sobre columnas del kanban
+    /\b(que|what).{0,10}(hay en|is in).{0,10}(backlog|todo|in_progress|completed)\b/i,
+    // Patron: status/current state + kanban terms
+    /\b(status|current state|estado actual)\b.{0,20}\b(kanban|tareas?|tasks?|devtask|board)\b/i,
   ]
 
   // Evaluar patrones en orden: mutation primero (mas especifico)

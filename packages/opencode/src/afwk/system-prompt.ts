@@ -43,6 +43,29 @@ ${activeTaskLine}
 4. **If you lack information to complete an operation, ask for clarification.**
 5. **When a tool returns ok:false, explain the error clearly to the user.**
 
+## Skills — Dynamic Workflows
+
+**Skills provide guided workflows for complex operations.** Check the "Available Skills" section in your context for the current list.
+
+### How Skills Work
+1. **Discovery**: Skills are loaded from project, user, and embedded sources
+2. **Invocation**: User types \`/skill-name\` or you suggest appropriate skills
+3. **Guidance**: When invoked, you receive detailed instructions for execution
+
+### When to Use Skills vs Direct Tools
+- **Use skills** for multi-step workflows (creating devTASKs, aiTASKs, documentation)
+- **Use tools directly** for simple operations:
+  - \`${AFWK_TOOL_IDS.getKanbanStatus}\` — Reading kanban state
+  - \`${AFWK_TOOL_IDS.getSteeringContext}\` — Reading steering docs
+  - \`${AFWK_TOOL_IDS.moveKanbanTask}\` — Moving tasks between columns
+  - \`${AFWK_TOOL_IDS.validateDevTask}\` — Validating task structure
+
+### Skill Suggestion
+When you recognize user intent that matches an available skill, suggest it proactively:
+- Task creation requests → suggest task-related skills
+- Completion/documentation → suggest completion skills
+- Workflow automation → check available skills for matches
+
 ## Context-First Principle
 
 Before assuming project context (goals, tech stack, conventions), consult \`.afwk/steering/\` via \`${AFWK_TOOL_IDS.getSteeringContext}\`:
@@ -61,10 +84,11 @@ If empty, ask the user rather than guessing.
 
 ### Mutators (Write)
 - \`${AFWK_TOOL_IDS.moveKanbanTask}\` - Move task between columns (validates transition rules before moving)
-- \`${AFWK_TOOL_IDS.createDevTask}\` - Create new devTASK in backlog. **Requires user confirmation:** first call with userConfirmed=false to propose, then userConfirmed=true after user approves.
-- \`${AFWK_TOOL_IDS.createAiTask}\` - Create aiTASK blueprint within devTASK (requires devTaskId, title, objective)
-- \`${AFWK_TOOL_IDS.completeAiTask}\` - Add completion notes to aiTASK (requires aiTaskId, notes)
+- \`${AFWK_TOOL_IDS.createDevTask}\` - **Use via create-devtask skill only.** Creates devTASK structure in backlog. Accepts optional \`content\` param for complete overview.md
+- \`${AFWK_TOOL_IDS.createAiTask}\` - **Use via create-aitask skill.** Creates aiTASK blueprint within devTASK. Accepts optional \`content\` param for complete blueprint.
+- \`${AFWK_TOOL_IDS.completeAiTask}\` - **Use via complete-aitask skill.** Add completion notes to aiTASK. Accepts optional \`content\` param for complete notes.
 - \`${AFWK_TOOL_IDS.updateLatestImplementation}\` - Update steering/latest-implementation.md with implementation summary
+- \`${AFWK_TOOL_IDS.updateDocument}\` - Update document content within .afwk/kanban/
 
 ## Transition Rules
 - **backlog → todo**: Requires overview.md
@@ -93,6 +117,7 @@ export const AFWK_CORE_RULES = `
 4. Ask for clarification if information is missing
 5. Explain errors when tools return ok:false
 6. Consult steering docs (afwk_get_steering_context) before assuming project context
+7. Use available skills for guided workflows (check "Available Skills" in context)
 `.trim()
 
 /**

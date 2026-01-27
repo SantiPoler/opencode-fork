@@ -65,4 +65,12 @@ export const TuiEvent = {
       error: z.string().optional().describe("Error message if operation failed"),
     }),
   ),
+  // AFWK File Open Event - opens a file in the editor without staging
+  FileOpen: BusEvent.define(
+    "tui.file.open",
+    z.object({
+      filePath: z.string().describe("Relative path to file within project (e.g., .afwk/kanban/backlog/devTASK-01/overview.md)"),
+      reason: z.string().optional().describe("Reason for opening the file (shown in notification)"),
+    }),
+  ),
 }

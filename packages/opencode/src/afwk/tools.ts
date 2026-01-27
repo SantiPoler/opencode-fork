@@ -11,6 +11,8 @@ import { appendToAuditLog, isInitialized, enqueuePendingAction } from "./state"
 import { loadTemplate } from "./template-loader"
 import { validateTransition, getTransitionRequirements } from "./rules-engine"
 import { stageDocument, isStagingEnabled } from "./staging"
+import { Bus } from "../bus"
+import { TuiEvent } from "../cli/cmd/tui/event"
 
 // Columnas validas del kanban
 const KANBAN_COLUMNS = ["backlog", "todo", "in_progress", "completed"] as const
@@ -564,6 +566,26 @@ async function findAiTaskPath(
 const CreateDevTaskParams = z.object({
   title: z.string().min(3).describe("Title for the devTASK (e.g., 'Login Implementation')"),
   description: z.string().min(10).describe("Description of what this task accomplishes"),
+  estimatedTimeHr: z
+    .number()
+    .positive()
+    .optional()
+    .describe("REQUIRED: Estimated time in hours to complete this task. Always provide this value."),
+  scope: z
+    .string()
+    .optional()
+    .describe("REQUIRED: Full scope including problem description, expected outcome, and proposed route. Always provide this value."),
+  steps: z
+    .array(z.string())
+    .optional()
+    .describe("REQUIRED: Preliminary implementation steps as an array of strings. Always provide at least 2-3 steps."),
+  content: z
+    .string()
+    .optional()
+    .describe(
+      "Full markdown content for overview.md. If provided, uses this content directly instead of template. " +
+        "Should follow the structure from .afwk/templates/overview.md (Objetivo, Alcance, Criterios de Exito, etc.)"
+    ),
 })
 
 interface CreateDevTaskMetadata {
@@ -575,7 +597,7 @@ export const AfwkCreateDevTaskTool = Tool.define<typeof CreateDevTaskParams, Cre
   AFWK_TOOL_IDS.createDevTask,
   {
     description:
-      "Create a new devTASK in the backlog. The overview document will be staged for user review before being saved.",
+      "Create a new devTASK in the backlog. IMPORTANT: Always provide estimatedTimeHr, scope, and steps - these are required for proper task tracking. The scope should include problem description, expected outcome, and proposed route.",
     parameters: CreateDevTaskParams,
     async execute(params, _ctx) {
       const runId = generateToolRunId()
@@ -631,7 +653,12 @@ export const AfwkCreateDevTaskTool = Tool.define<typeof CreateDevTaskParams, Cre
           id: taskId,
           title: params.title,
           description: params.description,
+          estimatedTimeHr: params.estimatedTimeHr ?? null,
+          scope: params.scope ?? null,
+          steps: params.steps ?? [],
           status: "backlog",
+          source: "local", // Placeholder until dipole.work API is ready
+          remoteIdentifier: null, // Will be populated when synced with dipole.work
           created_at: new Date().toISOString(),
           aitasks: [],
         }
@@ -643,16 +670,71 @@ export const AfwkCreateDevTaskTool = Tool.define<typeof CreateDevTaskParams, Cre
           summary: "Created devTASK.json metadata",
         })
 
-        // Crear overview.md desde template
-        const overviewContent = await loadTemplate("overview", {
-          title: params.title,
-          description: params.description,
-          devTaskId: taskId,
-        })
+        // Crear overview.md - usar content si se proporciona, sino template
+        const overviewContent = params.content
+          ? params.content
+          : await loadTemplate("overview", {
+              title: params.title,
+              description: params.description,
+              devTaskId: taskId,
+            })
         const overviewRelPath = `kanban/backlog/${taskId}/overview.md`
         const overviewPath = path.join(taskDir, "overview.md")
+        const hasContent = !!params.content
 
-        // Use staging if enabled
+        // When content is provided: write directly and open in editor (no staging)
+        // When template: use staging for user to fill placeholders
+        if (hasContent) {
+          // Direct write with provided content
+          await fs.writeFile(overviewPath, overviewContent, "utf-8")
+          changes.push({
+            path: toRelativePath(overviewPath),
+            type: "create",
+            summary: "Created overview.md with provided content",
+          })
+
+          const output: AfwkToolOutput = {
+            ok: true,
+            tool_run_id: runId,
+            entity_refs: { devTaskId: taskId },
+            changes,
+            warnings,
+            errors,
+          }
+
+          await appendToAuditLog({
+            tool_run_id: runId,
+            timestamp: new Date().toISOString(),
+            tool: AFWK_TOOL_IDS.createDevTask,
+            input: params,
+            output_ok: true,
+            changes,
+            errors,
+            entity_refs: output.entity_refs,
+          })
+
+          // Emit event to open file in editor
+          Bus.publish(TuiEvent.FileOpen, {
+            filePath: `.afwk/${overviewRelPath}`,
+            reason: `devTASK ${taskId} created`,
+          })
+
+          return {
+            title: taskId,
+            output: `✅ Created ${taskId} in backlog
+
+📁 Files created:
+- .afwk/kanban/backlog/${taskId}/
+- .afwk/kanban/backlog/${taskId}/devTASK.json
+- .afwk/kanban/backlog/${taskId}/overview.md
+
+📝 The document has been opened in dipoleSTUDIO for your review.
+You can edit it directly if needed.`,
+            metadata: { afwk: output, taskId },
+          }
+        }
+
+        // Template mode: use staging if enabled
         if (isStagingEnabled()) {
           const stagingResult = await stageDocument({
             toolRunId: runId,
@@ -702,18 +784,13 @@ export const AfwkCreateDevTaskTool = Tool.define<typeof CreateDevTaskParams, Cre
 - Staged at: .afwk/${stagingResult.stagedPath}
 - Final location: .afwk/${overviewRelPath}
 
-The file should open in your editor. Review and edit as needed, then click Confirm to save or Cancel to discard.
-
-The overview.md has \`<!-- FILL: ... -->\` sections that need content:
-1. **Alcance** - List affected components/files.
-2. **Criterios de Exito** - Define 3-5 measurable success criteria.
-3. **Consideraciones Tecnicas** - Identify risks and technical decisions.
-4. **Fuera de Alcance** - Explicitly list what's NOT included.`,
+⚠️ **Template mode**: The overview.md has \`<!-- FILL: ... -->\` sections that need content.
+Complete the sections or use the \`content\` parameter to provide complete content.`,
             metadata: { afwk: output, taskId, staging: output.staging },
           }
         }
 
-        // Direct write (staging disabled)
+        // Direct write with template (staging disabled)
         await fs.writeFile(overviewPath, overviewContent, "utf-8")
         changes.push({
           path: toRelativePath(overviewPath),
@@ -769,13 +846,15 @@ The overview.md has \`<!-- FILL: ... -->\` sections that need content:
         entity_refs: output.entity_refs,
       })
 
-      // Build paths for agent to complete template
+      // Build paths for output message
       const overviewRelPath = `kanban/backlog/${taskId}/overview.md`
       const metadataRelPath = `kanban/backlog/${taskId}/devTASK.json`
 
-      return {
-        title: taskId,
-        output: `✅ Created ${taskId} in backlog
+      // Check if we used template (content not provided)
+      const usedTemplateNoStaging = !params.content
+
+      const outputMessageNoStaging = usedTemplateNoStaging
+        ? `✅ Created ${taskId} in backlog
 
 📁 Files created:
 - kanban/backlog/${taskId}/
@@ -784,14 +863,26 @@ The overview.md has \`<!-- FILL: ... -->\` sections that need content:
 
 📝 **Action Required**: Complete the template sections in overview.md
 
-The overview.md has \`<!-- FILL: ... -->\` sections that need content:
-1. **Alcance** - List affected components/files. Search the project if needed.
-2. **Criterios de Exito** - Define 3-5 measurable success criteria.
-3. **Consideraciones Tecnicas** - Identify risks and technical decisions.
-4. **Fuera de Alcance** - Explicitly list what's NOT included.
+The overview.md has \`<!-- FILL: ... -->\` sections that need content.
+To complete: Read the file at \`.afwk/${overviewRelPath}\`, generate content for each FILL section, then use \`afwk_update_document\` with the full updated content.`
+        : `✅ Created ${taskId} in backlog
 
-To complete: Read the file at \`.afwk/${overviewRelPath}\`, generate content for each FILL section based on the conversation context and project analysis, then use \`afwk_update_document\` with the full updated content and show a summary of the created devTASK to the user.`,
-        metadata: { afwk: output, taskId, needsCompletion: true, documentPath: overviewRelPath },
+📁 Files created:
+- kanban/backlog/${taskId}/
+- ${metadataRelPath}
+- ${overviewRelPath}
+
+The devTASK has been created with your provided content.`
+
+      return {
+        title: taskId,
+        output: outputMessageNoStaging,
+        metadata: {
+          afwk: output,
+          taskId,
+          needsCompletion: usedTemplateNoStaging,
+          documentPath: overviewRelPath,
+        },
       }
     },
   },
@@ -805,6 +896,13 @@ const CreateAiTaskParams = z.object({
   devTaskId: z.string().describe("Parent devTASK ID (e.g., 'devTASK-01_login')"),
   title: z.string().min(3).describe("Title for this aiTASK iteration"),
   objective: z.string().min(10).describe("Objective for this specific iteration"),
+  content: z
+    .string()
+    .optional()
+    .describe(
+      "Full markdown content for the aiTASK blueprint. If provided, uses this content directly instead of template. " +
+        "Should follow the structure from .afwk/templates/aitask-blueprint.md"
+    ),
 })
 
 interface CreateAiTaskMetadata {
@@ -889,19 +987,21 @@ export const AfwkCreateAiTaskTool = Tool.define<typeof CreateAiTaskParams, Creat
       const aiTaskId = `aiTASK-${taskNum}_${slug}`
 
       try {
-        // Crear aiTASK.md desde template
-        const aiTaskContent = await loadTemplate("aitask-blueprint", {
-          title: params.title,
-          aiTaskId,
-          devTaskId: params.devTaskId,
-          objective: params.objective,
-        })
+        // Crear aiTASK.md - usar content si se proporciona, sino template
+        const aiTaskContent = params.content
+          ? params.content
+          : await loadTemplate("aitask-blueprint", {
+              title: params.title,
+              aiTaskId,
+              devTaskId: params.devTaskId,
+              objective: params.objective,
+            })
         const aiTaskRelPath = `kanban/${devTaskInfo.column}/${params.devTaskId}/${aiTaskId}.md`
         const aiTaskPath = path.join(devTaskInfo.path, `${aiTaskId}.md`)
+        const hasContent = !!params.content
 
-        // Use staging if enabled
-        if (isStagingEnabled()) {
-          // Update devTASK.json first (this is metadata, not staged)
+        // Helper to update devTASK.json metadata
+        const updateDevTaskMetadata = async () => {
           const metadataPath = path.join(devTaskInfo.path, "devTASK.json")
           try {
             const metadataContent = await fs.readFile(metadataPath, "utf-8")
@@ -919,6 +1019,64 @@ export const AfwkCreateAiTaskTool = Tool.define<typeof CreateAiTaskParams, Creat
           } catch {
             warnings.push("Could not update devTASK.json (file may not exist)")
           }
+        }
+
+        // When content is provided: write directly and open in editor (no staging)
+        if (hasContent) {
+          // Direct write with provided content
+          await fs.writeFile(aiTaskPath, aiTaskContent, "utf-8")
+          changes.push({
+            path: toRelativePath(aiTaskPath),
+            type: "create",
+            summary: `Created aiTASK blueprint: ${aiTaskId}`,
+          })
+
+          // Update devTASK.json
+          await updateDevTaskMetadata()
+
+          const output: AfwkToolOutput = {
+            ok: true,
+            tool_run_id: runId,
+            entity_refs: { devTaskId: params.devTaskId, aiTaskId },
+            changes,
+            warnings,
+            errors,
+          }
+
+          await appendToAuditLog({
+            tool_run_id: runId,
+            timestamp: new Date().toISOString(),
+            tool: AFWK_TOOL_IDS.createAiTask,
+            input: params,
+            output_ok: true,
+            changes,
+            errors,
+            entity_refs: output.entity_refs,
+          })
+
+          // Emit event to open file in editor
+          Bus.publish(TuiEvent.FileOpen, {
+            filePath: `.afwk/${aiTaskRelPath}`,
+            reason: `aiTASK ${aiTaskId} created`,
+          })
+
+          return {
+            title: aiTaskId,
+            output: `✅ Created ${aiTaskId} in ${params.devTaskId}
+
+📁 Files created:
+- .afwk/${aiTaskRelPath}
+
+📝 The blueprint has been opened in dipoleSTUDIO for your review.
+You can edit it directly if needed.`,
+            metadata: { afwk: output, aiTaskId },
+          }
+        }
+
+        // Template mode: use staging if enabled
+        if (isStagingEnabled()) {
+          // Update devTASK.json first (this is metadata, not staged)
+          await updateDevTaskMetadata()
 
           const stagingResult = await stageDocument({
             toolRunId: runId,
@@ -964,18 +1122,13 @@ export const AfwkCreateAiTaskTool = Tool.define<typeof CreateAiTaskParams, Creat
 - Staged at: .afwk/${stagingResult.stagedPath}
 - Final location: .afwk/${aiTaskRelPath}
 
-The file should open in your editor. Review and edit as needed, then click Confirm to save or Cancel to discard.
-
-The blueprint has \`<!-- FILL: ... -->\` sections that need content:
-1. **Especificacion de Implementacion** - Detail technical implementation steps.
-2. **Criterios de Validacion** - List 3-5 specific validation criteria.
-3. **Archivos a Modificar** - List files to be modified with descriptions.
-4. **Casos de Prueba** - Define 2-4 test cases.`,
+⚠️ **Template mode**: The blueprint has \`<!-- FILL: ... -->\` sections that need content.
+Complete the sections or use the \`content\` parameter to provide complete content.`,
             metadata: { afwk: output, aiTaskId, staging: output.staging },
           }
         }
 
-        // Direct write (staging disabled)
+        // Direct write with template (staging disabled)
         await fs.writeFile(aiTaskPath, aiTaskContent, "utf-8")
         changes.push({
           path: toRelativePath(aiTaskPath),
@@ -984,23 +1137,7 @@ The blueprint has \`<!-- FILL: ... -->\` sections that need content:
         })
 
         // Actualizar devTASK.json
-        const metadataPath = path.join(devTaskInfo.path, "devTASK.json")
-        try {
-          const metadataContent = await fs.readFile(metadataPath, "utf-8")
-          const metadata = JSON.parse(metadataContent)
-          if (!Array.isArray(metadata.aitasks)) {
-            metadata.aitasks = []
-          }
-          metadata.aitasks.push(aiTaskId)
-          await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), "utf-8")
-          changes.push({
-            path: toRelativePath(metadataPath),
-            type: "update",
-            summary: `Added ${aiTaskId} to devTASK.json`,
-          })
-        } catch {
-          warnings.push("Could not update devTASK.json (file may not exist)")
-        }
+        await updateDevTaskMetadata()
       } catch (err) {
         errors.push(`Failed to create aiTASK: ${err}`)
         const output: AfwkToolOutput = {
@@ -1050,26 +1187,33 @@ The blueprint has \`<!-- FILL: ... -->\` sections that need content:
         entity_refs: output.entity_refs,
       })
 
-      // Build path for agent to complete template
-      const aiTaskRelPath = `kanban/${devTaskInfo.column}/${params.devTaskId}/${aiTaskId}.md`
+      // Build path for output message
+      const aiTaskRelPathFinal = `kanban/${devTaskInfo.column}/${params.devTaskId}/${aiTaskId}.md`
 
-      return {
-        title: aiTaskId,
-        output: `✅ Created ${aiTaskId} in ${params.devTaskId}
+      // Check if we used template (content not provided)
+      const usedTemplate = !params.content
+
+      const outputMessage = usedTemplate
+        ? `✅ Created ${aiTaskId} in ${params.devTaskId}
 
 📁 Files created:
-- ${toRelativePath(path.join(devTaskInfo.path, `${aiTaskId}.md`))}
+- .afwk/${aiTaskRelPathFinal}
 
 📝 **Action Required**: Complete the template sections in ${aiTaskId}.md
 
-The blueprint has \`<!-- FILL: ... -->\` sections that need content:
-1. **Especificacion de Implementacion** - Detail technical implementation steps.
-2. **Criterios de Validacion** - List 3-5 specific validation criteria.
-3. **Archivos a Modificar** - List files to be modified with descriptions.
-4. **Casos de Prueba** - Define 2-4 test cases.
+The blueprint has \`<!-- FILL: ... -->\` sections that need content.
+To complete: Read the file, generate content for each FILL section, then use \`afwk_update_document\`.`
+        : `✅ Created ${aiTaskId} in ${params.devTaskId}
 
-To complete: Read the file at \`.afwk/${aiTaskRelPath}\`, generate content for each FILL section, then use \`afwk_update_document\` with the full updated content.`,
-        metadata: { afwk: output, aiTaskId, needsCompletion: true, documentPath: aiTaskRelPath },
+📁 Files created:
+- .afwk/${aiTaskRelPathFinal}
+
+The aiTASK blueprint has been created with your provided content.`
+
+      return {
+        title: aiTaskId,
+        output: outputMessage,
+        metadata: { afwk: output, aiTaskId, needsCompletion: usedTemplate, documentPath: aiTaskRelPathFinal },
       }
     },
   },
@@ -1082,6 +1226,12 @@ To complete: Read the file at \`.afwk/${aiTaskRelPath}\`, generate content for e
 const CompleteAiTaskParams = z.object({
   aiTaskId: z.string().describe("The aiTASK ID to complete (e.g., 'aiTASK-01_setup-db')"),
   notes: z.string().min(10).describe("Completion notes describing what was accomplished"),
+  content: z
+    .string()
+    .optional()
+    .describe(
+      "Full markdown content for completion-notes.md. If provided, uses this content directly instead of template. Use complete-aitask skill to generate this content.",
+    ),
 })
 
 interface CompleteAiTaskMetadata {
@@ -1193,13 +1343,95 @@ export const AfwkCompleteAiTaskTool = Tool.define<typeof CompleteAiTaskParams, C
         // File doesn't exist - good, we can create it
       }
 
+      const completionNotesRelPath = `kanban/${aiTaskInfo.column}/${aiTaskInfo.devTaskId}/${params.aiTaskId}_completion-notes.md`
+      const completionContent = params.content?.trim()
+      const hasContent = completionContent && completionContent.length > 0
+
+      // If content is provided, write directly and open in editor (no staging)
+      if (hasContent) {
+        try {
+          await fs.writeFile(completionNotesPath, completionContent, "utf-8")
+          changes.push({
+            path: toRelativePath(completionNotesPath),
+            type: "create",
+            summary: `Created completion notes for ${params.aiTaskId}`,
+          })
+
+          // Encolar pending action para update_latest_implementation
+          await enqueuePendingAction({
+            id: `pa_${runId}`,
+            type: "update_latest_implementation",
+            context: {
+              devTaskId: aiTaskInfo.devTaskId,
+              aiTaskId: params.aiTaskId,
+              triggered_by_tool_run: runId,
+            },
+            created_at: new Date().toISOString(),
+            status: "pending",
+          })
+
+          await appendToAuditLog({
+            tool_run_id: runId,
+            timestamp: new Date().toISOString(),
+            tool: AFWK_TOOL_IDS.completeAiTask,
+            input: { ...params, content: "[content provided]" },
+            output_ok: true,
+            changes,
+            errors,
+            entity_refs: { devTaskId: aiTaskInfo.devTaskId, aiTaskId: params.aiTaskId },
+          })
+
+          // Emit FileOpen event to open in editor
+          Bus.publish(TuiEvent.FileOpen, {
+            filePath: `.afwk/${completionNotesRelPath}`,
+            reason: `Completion notes for ${params.aiTaskId} created`,
+          })
+
+          const output: AfwkToolOutput = {
+            ok: true,
+            tool_run_id: runId,
+            entity_refs: { devTaskId: aiTaskInfo.devTaskId, aiTaskId: params.aiTaskId },
+            changes,
+            warnings: ["Pending action queued: update_latest_implementation"],
+            errors,
+          }
+
+          return {
+            title: params.aiTaskId,
+            output: `✅ Completed ${params.aiTaskId}
+
+📁 Completion notes created and opened in dipoleSTUDIO.
+📄 Location: .afwk/${completionNotesRelPath}
+
+You can edit the file directly if adjustments are needed.
+
+⚠️ Pending action: Run afwk_update_latest_implementation to update steering docs.`,
+            metadata: { afwk: output },
+          }
+        } catch (err) {
+          errors.push(`Failed to write completion notes: ${err}`)
+          const output: AfwkToolOutput = {
+            ok: false,
+            tool_run_id: runId,
+            entity_refs: { devTaskId: aiTaskInfo.devTaskId, aiTaskId: params.aiTaskId },
+            changes,
+            warnings,
+            errors,
+          }
+          return {
+            title: params.aiTaskId,
+            output: `Error: ${errors.join(", ")}`,
+            metadata: { afwk: output },
+          }
+        }
+      }
+
       try {
-        // Crear completion notes desde template
+        // Crear completion notes desde template (legacy flow)
         const completionContent = await loadTemplate("completion-notes", {
           aiTaskId: params.aiTaskId,
           notes: params.notes,
         })
-        const completionNotesRelPath = `kanban/${aiTaskInfo.column}/${aiTaskInfo.devTaskId}/${params.aiTaskId}_completion-notes.md`
 
         // Use staging if enabled
         if (isStagingEnabled()) {
@@ -1344,9 +1576,6 @@ The completion notes have \`<!-- FILL: ... -->\` sections that need content:
         errors,
         entity_refs: output.entity_refs,
       })
-
-      // Build path for agent to complete template
-      const completionNotesRelPath = `kanban/${aiTaskInfo.column}/${aiTaskInfo.devTaskId}/${params.aiTaskId}_completion-notes.md`
 
       return {
         title: params.aiTaskId,
@@ -2296,6 +2525,1015 @@ The file should open in your editor. Review and edit as needed, then click Confi
   },
 )
 
+// ============================================================================
+// PRIMITIVE FILESYSTEM TOOLS (restricted to .afwk)
+// ============================================================================
+
+/**
+ * Validates and resolves a path within .afwk directory
+ * Returns null if path is invalid or escapes .afwk
+ */
+function validateAfwkPath(relativePath: string): { valid: true; fullPath: string; normalizedPath: string } | { valid: false; error: string } {
+  // Normalize path separators
+  const normalized = relativePath.replace(/\\/g, "/")
+
+  // Check for path traversal
+  if (normalized.includes("..")) {
+    return { valid: false, error: "Path traversal (..) not allowed" }
+  }
+
+  // Check for absolute paths
+  if (path.isAbsolute(relativePath)) {
+    return { valid: false, error: "Absolute paths not allowed. Use paths relative to .afwk/" }
+  }
+
+  // Build full path
+  const fullPath = path.join(getAfwkDir(), normalized)
+
+  // Verify the resolved path is still under .afwk
+  const afwkDir = getAfwkDir()
+  if (!fullPath.startsWith(afwkDir)) {
+    return { valid: false, error: "Path escapes .afwk directory" }
+  }
+
+  return { valid: true, fullPath, normalizedPath: normalized }
+}
+
+// ============================================================================
+// TOOL: afwk_file_exists
+// ============================================================================
+
+const FileExistsParams = z.object({
+  path: z.string().describe("Relative path to file within .afwk/ (e.g., 'kanban/backlog/devTASK-01/overview.md')"),
+})
+
+interface FileExistsMetadata {
+  afwk: AfwkToolOutput
+  exists: boolean
+  path: string
+}
+
+export const AfwkFileExistsTool = Tool.define<typeof FileExistsParams, FileExistsMetadata>(
+  AFWK_TOOL_IDS.fileExists,
+  {
+    description:
+      "Check if a file exists at a specific path within .afwk/. Returns true if file exists, false otherwise. Does not check folders.",
+    parameters: FileExistsParams,
+    async execute(params, _ctx) {
+      const runId = generateToolRunId()
+      const errors: string[] = []
+
+      // Validate path
+      const pathResult = validateAfwkPath(params.path)
+      if (!pathResult.valid) {
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors: [pathResult.error],
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.fileExists,
+          input: params,
+          output_ok: false,
+          changes: [],
+          errors: output.errors,
+        })
+
+        return {
+          title: "File Exists",
+          output: `Error: ${pathResult.error}`,
+          metadata: { afwk: output, exists: false, path: params.path },
+        }
+      }
+
+      // Check if file exists
+      let exists = false
+      try {
+        const stats = await fs.stat(pathResult.fullPath)
+        exists = stats.isFile()
+      } catch {
+        exists = false
+      }
+
+      const output: AfwkToolOutput = {
+        ok: true,
+        tool_run_id: runId,
+        changes: [],
+        warnings: [],
+        errors,
+      }
+
+      await appendToAuditLog({
+        tool_run_id: runId,
+        timestamp: new Date().toISOString(),
+        tool: AFWK_TOOL_IDS.fileExists,
+        input: params,
+        output_ok: true,
+        changes: [],
+        errors,
+      })
+
+      return {
+        title: path.basename(params.path),
+        output: exists ? `✅ File exists: ${pathResult.normalizedPath}` : `❌ File does not exist: ${pathResult.normalizedPath}`,
+        metadata: { afwk: output, exists, path: pathResult.normalizedPath },
+      }
+    },
+  },
+)
+
+// ============================================================================
+// TOOL: afwk_folder_exists
+// ============================================================================
+
+const FolderExistsParams = z.object({
+  path: z.string().describe("Relative path to folder within .afwk/ (e.g., 'kanban/backlog/devTASK-01')"),
+})
+
+interface FolderExistsMetadata {
+  afwk: AfwkToolOutput
+  exists: boolean
+  path: string
+}
+
+export const AfwkFolderExistsTool = Tool.define<typeof FolderExistsParams, FolderExistsMetadata>(
+  AFWK_TOOL_IDS.folderExists,
+  {
+    description:
+      "Check if a folder exists at a specific path within .afwk/. Returns true if folder exists, false otherwise. Does not check files.",
+    parameters: FolderExistsParams,
+    async execute(params, _ctx) {
+      const runId = generateToolRunId()
+      const errors: string[] = []
+
+      // Validate path
+      const pathResult = validateAfwkPath(params.path)
+      if (!pathResult.valid) {
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors: [pathResult.error],
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.folderExists,
+          input: params,
+          output_ok: false,
+          changes: [],
+          errors: output.errors,
+        })
+
+        return {
+          title: "Folder Exists",
+          output: `Error: ${pathResult.error}`,
+          metadata: { afwk: output, exists: false, path: params.path },
+        }
+      }
+
+      // Check if folder exists
+      let exists = false
+      try {
+        const stats = await fs.stat(pathResult.fullPath)
+        exists = stats.isDirectory()
+      } catch {
+        exists = false
+      }
+
+      const output: AfwkToolOutput = {
+        ok: true,
+        tool_run_id: runId,
+        changes: [],
+        warnings: [],
+        errors,
+      }
+
+      await appendToAuditLog({
+        tool_run_id: runId,
+        timestamp: new Date().toISOString(),
+        tool: AFWK_TOOL_IDS.folderExists,
+        input: params,
+        output_ok: true,
+        changes: [],
+        errors,
+      })
+
+      return {
+        title: path.basename(params.path) || params.path,
+        output: exists ? `✅ Folder exists: ${pathResult.normalizedPath}` : `❌ Folder does not exist: ${pathResult.normalizedPath}`,
+        metadata: { afwk: output, exists, path: pathResult.normalizedPath },
+      }
+    },
+  },
+)
+
+// ============================================================================
+// TOOL: afwk_create_file
+// ============================================================================
+
+const CreateFileParams = z.object({
+  path: z.string().describe("Relative path for new file within .afwk/ (e.g., 'schemas/devtask.schema.json')"),
+  content: z.string().describe("Content to write to the file"),
+  overwrite: z.boolean().optional().default(false).describe("If true, overwrite existing file. Default is false."),
+})
+
+interface CreateFileMetadata {
+  afwk: AfwkToolOutput
+  created: boolean
+  path: string
+}
+
+export const AfwkCreateFileTool = Tool.define<typeof CreateFileParams, CreateFileMetadata>(
+  AFWK_TOOL_IDS.createFile,
+  {
+    description:
+      "Create a new file at a specific path within .afwk/. Creates parent directories if they don't exist. By default, fails if file already exists (use overwrite=true to replace).",
+    parameters: CreateFileParams,
+    async execute(params, _ctx) {
+      const runId = generateToolRunId()
+      const errors: string[] = []
+      const warnings: string[] = []
+      const changes: AfwkToolOutput["changes"] = []
+
+      // Validate path
+      const pathResult = validateAfwkPath(params.path)
+      if (!pathResult.valid) {
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors: [pathResult.error],
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.createFile,
+          input: { path: params.path, overwrite: params.overwrite },
+          output_ok: false,
+          changes: [],
+          errors: output.errors,
+        })
+
+        return {
+          title: "Create File",
+          output: `Error: ${pathResult.error}`,
+          metadata: { afwk: output, created: false, path: params.path },
+        }
+      }
+
+      // Check if file already exists
+      let fileExists = false
+      try {
+        const stats = await fs.stat(pathResult.fullPath)
+        fileExists = stats.isFile()
+      } catch {
+        fileExists = false
+      }
+
+      if (fileExists && !params.overwrite) {
+        errors.push(`File already exists: ${pathResult.normalizedPath}. Use overwrite=true to replace.`)
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings,
+          errors,
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.createFile,
+          input: { path: params.path, overwrite: params.overwrite },
+          output_ok: false,
+          changes: [],
+          errors,
+        })
+
+        return {
+          title: "Create File",
+          output: `Error: ${errors.join(", ")}`,
+          metadata: { afwk: output, created: false, path: pathResult.normalizedPath },
+        }
+      }
+
+      // Create parent directories and write file
+      try {
+        const parentDir = path.dirname(pathResult.fullPath)
+        await fs.mkdir(parentDir, { recursive: true })
+
+        await fs.writeFile(pathResult.fullPath, params.content, "utf-8")
+
+        changes.push({
+          path: pathResult.normalizedPath,
+          type: fileExists ? "update" : "create",
+          summary: fileExists ? `Overwrote file: ${path.basename(params.path)}` : `Created file: ${path.basename(params.path)}`,
+        })
+      } catch (err) {
+        errors.push(`Failed to create file: ${err}`)
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes,
+          warnings,
+          errors,
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.createFile,
+          input: { path: params.path, overwrite: params.overwrite },
+          output_ok: false,
+          changes,
+          errors,
+        })
+
+        return {
+          title: "Create File",
+          output: `Error: ${errors.join(", ")}`,
+          metadata: { afwk: output, created: false, path: pathResult.normalizedPath },
+        }
+      }
+
+      const output: AfwkToolOutput = {
+        ok: true,
+        tool_run_id: runId,
+        changes,
+        warnings,
+        errors,
+      }
+
+      await appendToAuditLog({
+        tool_run_id: runId,
+        timestamp: new Date().toISOString(),
+        tool: AFWK_TOOL_IDS.createFile,
+        input: { path: params.path, overwrite: params.overwrite },
+        output_ok: true,
+        changes,
+        errors,
+      })
+
+      return {
+        title: path.basename(params.path),
+        output: fileExists
+          ? `✅ Overwrote file: ${pathResult.normalizedPath}`
+          : `✅ Created file: ${pathResult.normalizedPath}`,
+        metadata: { afwk: output, created: true, path: pathResult.normalizedPath },
+      }
+    },
+  },
+)
+
+// ============================================================================
+// CONFIGURATION TOOLS
+// ============================================================================
+
+/**
+ * Configuration file path within .afwk
+ */
+function getConfigPath(): string {
+  return path.join(getAfwkDir(), "config.json")
+}
+
+/**
+ * Configuration schema
+ */
+interface AfwkConfig {
+  dipoleApiUrl?: string
+  dipoleApiKey?: string
+  allowInsecureTls?: boolean // For localhost development with self-signed certs
+}
+
+/**
+ * Fetch with optional insecure TLS (for localhost development)
+ */
+async function fetchWithConfig(url: string, options: RequestInit, config: AfwkConfig): Promise<Response> {
+  // For localhost with HTTPS, we may need to allow self-signed certs
+  const isLocalhost = url.includes("localhost") || url.includes("127.0.0.1")
+  const isHttps = url.startsWith("https://")
+
+  if (isLocalhost && isHttps && config.allowInsecureTls !== false) {
+    // Bun supports tls option in fetch for self-signed certs
+    return fetch(url, {
+      ...options,
+      // @ts-ignore - Bun-specific option
+      tls: { rejectUnauthorized: false },
+    })
+  }
+
+  return fetch(url, options)
+}
+
+/**
+ * Read configuration from .afwk/config.json
+ */
+async function readConfig(): Promise<AfwkConfig> {
+  try {
+    const content = await fs.readFile(getConfigPath(), "utf-8")
+    return JSON.parse(content) as AfwkConfig
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Write configuration to .afwk/config.json
+ */
+async function writeConfig(config: AfwkConfig): Promise<void> {
+  await fs.mkdir(getAfwkDir(), { recursive: true })
+  await fs.writeFile(getConfigPath(), JSON.stringify(config, null, 2), "utf-8")
+}
+
+// ============================================================================
+// TOOL: afwk_get_config
+// ============================================================================
+
+const GetConfigParams = z.object({
+  key: z
+    .string()
+    .optional()
+    .describe("Specific config key to retrieve (e.g., 'dipoleApiUrl'). If omitted, returns all config."),
+})
+
+interface GetConfigMetadata {
+  afwk: AfwkToolOutput
+  config: AfwkConfig
+  hasApiConfig: boolean
+}
+
+export const AfwkGetConfigTool = Tool.define<typeof GetConfigParams, GetConfigMetadata>(
+  AFWK_TOOL_IDS.getConfig,
+  {
+    description:
+      "Read aiFRAMEWORK configuration from .afwk/config.json. Use this to check if dipole.work API is configured.",
+    parameters: GetConfigParams,
+    async execute(params, _ctx) {
+      const runId = generateToolRunId()
+      const config = await readConfig()
+
+      const hasApiConfig = !!(config.dipoleApiUrl && config.dipoleApiKey)
+
+      const output: AfwkToolOutput = {
+        ok: true,
+        tool_run_id: runId,
+        changes: [],
+        warnings: hasApiConfig ? [] : ["dipole.work API not configured. Use afwk_set_config to configure."],
+        errors: [],
+      }
+
+      await appendToAuditLog({
+        tool_run_id: runId,
+        timestamp: new Date().toISOString(),
+        tool: AFWK_TOOL_IDS.getConfig,
+        input: params,
+        output_ok: true,
+        changes: [],
+        errors: [],
+      })
+
+      // If specific key requested
+      if (params.key) {
+        const value = config[params.key as keyof AfwkConfig]
+        return {
+          title: params.key,
+          output: value ? `${params.key}: ${params.key.includes("Key") ? "***configured***" : value}` : `${params.key}: not set`,
+          metadata: { afwk: output, config, hasApiConfig },
+        }
+      }
+
+      // Return all config (mask API key)
+      const displayConfig = {
+        dipoleApiUrl: config.dipoleApiUrl || "not set",
+        dipoleApiKey: config.dipoleApiKey ? "***configured***" : "not set",
+      }
+
+      return {
+        title: "Config",
+        output: `## aiFRAMEWORK Configuration\n\n${JSON.stringify(displayConfig, null, 2)}\n\n${hasApiConfig ? "✅ dipole.work API configured" : "⚠️ dipole.work API not configured"}`,
+        metadata: { afwk: output, config, hasApiConfig },
+      }
+    },
+  },
+)
+
+// ============================================================================
+// TOOL: afwk_set_config
+// ============================================================================
+
+const SetConfigParams = z.object({
+  dipoleApiUrl: z
+    .string()
+    .optional()
+    .describe("Base URL for dipole.work API (e.g., 'https://dipole.work' or 'https://localhost:7xxx')"),
+  dipoleApiKey: z
+    .string()
+    .optional()
+    .describe("API key for dipole.work authentication"),
+})
+
+interface SetConfigMetadata {
+  afwk: AfwkToolOutput
+}
+
+export const AfwkSetConfigTool = Tool.define<typeof SetConfigParams, SetConfigMetadata>(
+  AFWK_TOOL_IDS.setConfig,
+  {
+    description:
+      "Configure aiFRAMEWORK settings. Use this to set dipole.work API URL and API key for remote sync.",
+    parameters: SetConfigParams,
+    async execute(params, _ctx) {
+      const runId = generateToolRunId()
+      const changes: AfwkToolOutput["changes"] = []
+
+      // Read existing config
+      const config = await readConfig()
+
+      // Update only provided fields
+      if (params.dipoleApiUrl !== undefined) {
+        config.dipoleApiUrl = params.dipoleApiUrl
+      }
+      if (params.dipoleApiKey !== undefined) {
+        config.dipoleApiKey = params.dipoleApiKey
+      }
+
+      // Write config
+      await writeConfig(config)
+      changes.push({
+        path: "config.json",
+        type: "update",
+        summary: "Updated aiFRAMEWORK configuration",
+      })
+
+      const output: AfwkToolOutput = {
+        ok: true,
+        tool_run_id: runId,
+        changes,
+        warnings: [],
+        errors: [],
+      }
+
+      await appendToAuditLog({
+        tool_run_id: runId,
+        timestamp: new Date().toISOString(),
+        tool: AFWK_TOOL_IDS.setConfig,
+        input: { dipoleApiUrl: params.dipoleApiUrl, dipoleApiKey: params.dipoleApiKey ? "***" : undefined },
+        output_ok: true,
+        changes,
+        errors: [],
+      })
+
+      return {
+        title: "Config Updated",
+        output: `✅ Configuration saved to .afwk/config.json`,
+        metadata: { afwk: output },
+      }
+    },
+  },
+)
+
+// ============================================================================
+// TOOL: afwk_fetch_remote_devtasks
+// ============================================================================
+
+const FetchRemoteDevtasksParams = z.object({})
+
+interface RemoteDevtaskItem {
+  id: number
+  identifier: string
+  title: string
+  status: string
+}
+
+interface FetchRemoteDevtasksMetadata {
+  afwk: AfwkToolOutput
+  items: RemoteDevtaskItem[]
+  count: number
+}
+
+export const AfwkFetchRemoteDevtasksTool = Tool.define<typeof FetchRemoteDevtasksParams, FetchRemoteDevtasksMetadata>(
+  AFWK_TOOL_IDS.fetchRemoteDevtasks,
+  {
+    description:
+      "Fetch list of available devTASKs from dipole.work API. Requires API to be configured first (use afwk_get_config to check, afwk_set_config to configure).",
+    parameters: FetchRemoteDevtasksParams,
+    async execute(_params, _ctx) {
+      const runId = generateToolRunId()
+      const errors: string[] = []
+
+      // Check config
+      const config = await readConfig()
+      if (!config.dipoleApiUrl || !config.dipoleApiKey) {
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors: ["dipole.work API not configured. Ask user for API URL and API key, then use afwk_set_config."],
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.fetchRemoteDevtasks,
+          input: {},
+          output_ok: false,
+          changes: [],
+          errors: output.errors,
+        })
+
+        return {
+          title: "Fetch Remote",
+          output: `❌ API not configured. Ask the user for:\n- dipole.work API URL\n- API Key\n\nThen use afwk_set_config to save the configuration.`,
+          metadata: { afwk: output, items: [], count: 0 },
+        }
+      }
+
+      // Fetch from API
+      try {
+        const url = `${config.dipoleApiUrl.replace(/\/$/, "")}/api/devtasks`
+        const response = await fetchWithConfig(url, {
+          method: "GET",
+          headers: {
+            "X-Api-Key": config.dipoleApiKey,
+            "Accept": "application/json",
+          },
+        }, config)
+
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json() as { items: RemoteDevtaskItem[]; count: number }
+
+        const output: AfwkToolOutput = {
+          ok: true,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors: [],
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.fetchRemoteDevtasks,
+          input: {},
+          output_ok: true,
+          changes: [],
+          errors: [],
+        })
+
+        // Format output
+        const lines = [
+          `## devTASKs in dipole.work (${data.count})`,
+          "",
+        ]
+
+        if (data.items.length === 0) {
+          lines.push("No devTASKs found.")
+        } else {
+          lines.push("| # | Identifier | Title | Status |")
+          lines.push("|---|------------|-------|--------|")
+          data.items.forEach((item, idx) => {
+            lines.push(`| ${idx + 1} | ${item.identifier} | ${item.title} | ${item.status} |`)
+          })
+          lines.push("")
+          lines.push("Use `afwk_pull_devtask` with the identifier to download a devTASK.")
+        }
+
+        return {
+          title: `${data.count} devTASKs`,
+          output: lines.join("\n"),
+          metadata: { afwk: output, items: data.items, count: data.count },
+        }
+      } catch (err) {
+        errors.push(`Failed to fetch from dipole.work: ${err}`)
+
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors,
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.fetchRemoteDevtasks,
+          input: {},
+          output_ok: false,
+          changes: [],
+          errors,
+        })
+
+        return {
+          title: "Fetch Failed",
+          output: `❌ ${errors.join(", ")}`,
+          metadata: { afwk: output, items: [], count: 0 },
+        }
+      }
+    },
+  },
+)
+
+// ============================================================================
+// TOOL: afwk_pull_devtask
+// ============================================================================
+
+const PullDevtaskParams = z.object({
+  identifier: z.string().describe("The devTASK identifier from dipole.work (e.g., '123-Workspace-devTASK')"),
+})
+
+interface PullDevtaskMetadata {
+  afwk: AfwkToolOutput
+  taskId?: string
+  localPath?: string
+}
+
+export const AfwkPullDevtaskTool = Tool.define<typeof PullDevtaskParams, PullDevtaskMetadata>(
+  AFWK_TOOL_IDS.pullDevtask,
+  {
+    description:
+      "Download a devTASK from dipole.work and create local structure in backlog. Creates devTASK folder with JSON metadata and empty overview.md template for the LLM to help complete.",
+    parameters: PullDevtaskParams,
+    async execute(params, _ctx) {
+      const runId = generateToolRunId()
+      const errors: string[] = []
+      const warnings: string[] = []
+      const changes: AfwkToolOutput["changes"] = []
+
+      // Check config
+      const config = await readConfig()
+      if (!config.dipoleApiUrl || !config.dipoleApiKey) {
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors: ["dipole.work API not configured."],
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.pullDevtask,
+          input: params,
+          output_ok: false,
+          changes: [],
+          errors: output.errors,
+        })
+
+        return {
+          title: "Pull DevTask",
+          output: `❌ API not configured.`,
+          metadata: { afwk: output },
+        }
+      }
+
+      // Fetch devTASK details from API
+      let remoteData: Record<string, unknown>
+      try {
+        const url = `${config.dipoleApiUrl.replace(/\/$/, "")}/api/devtasks/${encodeURIComponent(params.identifier)}`
+        const response = await fetchWithConfig(url, {
+          method: "GET",
+          headers: {
+            "X-Api-Key": config.dipoleApiKey,
+            "Accept": "application/json",
+          },
+        }, config)
+
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`)
+        }
+
+        remoteData = await response.json() as Record<string, unknown>
+      } catch (err) {
+        errors.push(`Failed to fetch devTASK: ${err}`)
+
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors,
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.pullDevtask,
+          input: params,
+          output_ok: false,
+          changes: [],
+          errors,
+        })
+
+        return {
+          title: "Pull Failed",
+          output: `❌ ${errors.join(", ")}`,
+          metadata: { afwk: output },
+        }
+      }
+
+      // Extract title from remote data
+      const itemInfo = remoteData.itemInfo as Record<string, unknown> | undefined
+      const normalizedFields = remoteData.normalizedFields as Record<string, unknown> | undefined
+      const title = (itemInfo?.title as string) || (normalizedFields?.title as string) || params.identifier
+
+      // Generate local ID and slug
+      const taskNum = await getNextDevTaskId()
+      const slug = generateSlug(title)
+      const taskId = `devTASK-${taskNum}_${slug}`
+      const taskDir = path.join(getColumnDir("backlog"), taskId)
+
+      // Check if already exists locally
+      try {
+        await fs.stat(taskDir)
+        errors.push(`Local devTASK with same name already exists: ${taskId}`)
+
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes: [],
+          warnings: [],
+          errors,
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.pullDevtask,
+          input: params,
+          output_ok: false,
+          changes: [],
+          errors,
+        })
+
+        return {
+          title: "Already Exists",
+          output: `❌ ${errors.join(", ")}`,
+          metadata: { afwk: output },
+        }
+      } catch {
+        // Good - directory doesn't exist
+      }
+
+      try {
+        // Create directory
+        await fs.mkdir(taskDir, { recursive: true })
+        changes.push({
+          path: toRelativePath(taskDir),
+          type: "create",
+          summary: `Created devTASK folder: ${taskId}`,
+        })
+
+        // Create devTASK.json with remote data + local fields
+        const metadata = {
+          id: taskId,
+          title,
+          description: (normalizedFields?.description as string) || "",
+          estimatedTimeHr: null,
+          scope: null,
+          steps: [],
+          status: "backlog",
+          source: "dipole.work",
+          remoteIdentifier: params.identifier,
+          remoteData, // Store full remote data for reference
+          created_at: new Date().toISOString(),
+          pulled_at: new Date().toISOString(),
+          aitasks: [],
+        }
+
+        const metadataPath = path.join(taskDir, "devTASK.json")
+        await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), "utf-8")
+        changes.push({
+          path: toRelativePath(metadataPath),
+          type: "create",
+          summary: "Created devTASK.json with remote data",
+        })
+
+        // Create overview.md template
+        const overviewContent = `# ${title}
+
+> Pulled from dipole.work: ${params.identifier}
+> Pulled at: ${new Date().toISOString()}
+
+## Objetivo
+
+<!-- LLM: Use the remote data in devTASK.json to fill this section -->
+
+## Alcance
+
+<!-- LLM: Use the remote data fields to describe the scope -->
+
+## Criterios de Exito
+
+- [ ] <!-- LLM: Define success criteria based on remote data -->
+
+## Consideraciones Tecnicas
+
+<!-- LLM: Extract technical considerations from remote data -->
+
+## Fuera de Alcance
+
+<!-- LLM: Define what's out of scope -->
+
+---
+
+*This devTASK was pulled from dipole.work. Use the create-devtask skill or manually edit to complete the document.*
+`
+
+        const overviewPath = path.join(taskDir, "overview.md")
+        await fs.writeFile(overviewPath, overviewContent, "utf-8")
+        changes.push({
+          path: toRelativePath(overviewPath),
+          type: "create",
+          summary: "Created overview.md template",
+        })
+
+        const output: AfwkToolOutput = {
+          ok: true,
+          tool_run_id: runId,
+          entity_refs: { devTaskId: taskId },
+          changes,
+          warnings,
+          errors,
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.pullDevtask,
+          input: params,
+          output_ok: true,
+          changes,
+          errors,
+          entity_refs: output.entity_refs,
+        })
+
+        // Open overview in editor
+        Bus.publish(TuiEvent.FileOpen, {
+          filePath: `.afwk/kanban/backlog/${taskId}/overview.md`,
+          reason: `Pulled devTASK ${taskId} from dipole.work`,
+        })
+
+        return {
+          title: taskId,
+          output: `✅ Pulled ${params.identifier} → ${taskId}
+
+📁 Created:
+- .afwk/kanban/backlog/${taskId}/
+- .afwk/kanban/backlog/${taskId}/devTASK.json (contains remote data)
+- .afwk/kanban/backlog/${taskId}/overview.md (template)
+
+📝 The overview.md has been opened in dipoleSTUDIO.
+
+**Next**: Read the devTASK.json to understand the remote data, then help the user complete the overview.md document.`,
+          metadata: { afwk: output, taskId, localPath: `kanban/backlog/${taskId}` },
+        }
+      } catch (err) {
+        errors.push(`Failed to create local structure: ${err}`)
+
+        const output: AfwkToolOutput = {
+          ok: false,
+          tool_run_id: runId,
+          changes,
+          warnings,
+          errors,
+        }
+
+        await appendToAuditLog({
+          tool_run_id: runId,
+          timestamp: new Date().toISOString(),
+          tool: AFWK_TOOL_IDS.pullDevtask,
+          input: params,
+          output_ok: false,
+          changes,
+          errors,
+        })
+
+        return {
+          title: "Pull Failed",
+          output: `❌ ${errors.join(", ")}`,
+          metadata: { afwk: output },
+        }
+      }
+    },
+  },
+)
+
 // Export para registro en el ToolRegistry
 export const AfwkTools = [
   AfwkGetKanbanStatusTool,
@@ -2307,4 +3545,11 @@ export const AfwkTools = [
   AfwkValidateDevTaskTool,
   AfwkUpdateLatestImplementationTool,
   AfwkUpdateDocumentTool,
+  AfwkFileExistsTool,
+  AfwkFolderExistsTool,
+  AfwkCreateFileTool,
+  AfwkGetConfigTool,
+  AfwkSetConfigTool,
+  AfwkFetchRemoteDevtasksTool,
+  AfwkPullDevtaskTool,
 ]
